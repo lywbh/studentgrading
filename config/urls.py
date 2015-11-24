@@ -1,8 +1,16 @@
+from django.conf import settings
 from django.conf.urls import patterns, include, url
 from django.contrib import admin
 
 urlpatterns = patterns(
     '',
-    url(r'^polls/', include('studentgrading.polls.urls', namespace="polls")),
-    url(r'^admin/', include(admin.site.urls)),
+
+    # Django Admin, use {% url 'admin:index' %}
+    url(settings.ADMIN_URL, include(admin.site.urls)),
+
+    # User management
+    url(
+        r'^users/',
+        include("studentgrading.users.urls", namespace="users")
+    ),
 )

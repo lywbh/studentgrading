@@ -35,16 +35,13 @@ DJANGO_APPS = (
     'django.contrib.admin',
 )
 THIRD_PARTY_APPS = (
-    #'crispy_forms',  # Form layouts
-    #'allauth',  # registration
-    #'allauth.account',  # registration
-    #'allauth.socialaccount',  # registration
+    'crispy_forms',  # Form layouts
 )
 
 # Apps specific for this project go here.
 LOCAL_APPS = (
     # Your stuff: custom apps go here
-    'studentgrading.polls',  # custom polls app
+    'studentgrading.users',  # custom users app
 )
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -123,16 +120,7 @@ USE_TZ = True
 
 # TEMPLATE CONFIGURATION
 # ------------------------------------------------------------------------------
-TEMPLATES = [
-    {
-        'DIRS': [
-            str(APPS_DIR.path('templates')),
-        ],
-        'OPTIONS': {
-            'debug': DEBUG,
-        }
-    },
-]
+TEMPLATE_DEBUG = DEBUG
 
 # STATIC FILE CONFIGURATION
 # ------------------------------------------------------------------------------
@@ -158,6 +146,17 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # AUTHENTICATION CONFIGURATION
 # ------------------------------------------------------------------------------
-# ...
+AUTHENTICATION_BACKENDS = (
+    'django.contrib.auth.backends.ModelBackend',
+)
+
+# Custom user app defaults
+# Select the correct user model
+AUTH_USER_MODEL = 'users.User'
+LOGIN_REDIRECT_URL = 'users:redirect'
+LOGIN_URL = 'users:login'
+
+# Location of root django.contrib.admin URL, use {% url 'admin:index' %}
+ADMIN_URL = r'^admin/'
 
 # Your common stuff: Below this line define 3rd party library settings
