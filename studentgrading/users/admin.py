@@ -21,7 +21,7 @@ BASE_FIELDS = (None, {
 })
 
 SIMPLE_PERMISSION_FIELDS = (_('Permissions'), {
-    'fields': ('is_active', 'is_admin', ),
+    'fields': ('is_active', 'is_staff', ),
 })
 
 ADVANCED_PERMISSION_FIELDS = copy.deepcopy(SIMPLE_PERMISSION_FIELDS)
@@ -40,9 +40,9 @@ class StrippedUserAdmin(DjangoUserAdmin):
     # The fields to be used in displaying the User model.
     # These override the definitions on the base UserAdmin
     # that reference specific fields on auth.User.
-    list_display = ('is_active', USERNAME_FIELD, 'is_admin',)
+    list_display = ('is_active', USERNAME_FIELD, 'is_staff',)
     list_display_links = (USERNAME_FIELD,)
-    list_filter = ('is_admin', 'is_active',)
+    list_filter = ('is_staff', 'is_active',)
     fieldsets = (
         BASE_FIELDS,
         SIMPLE_PERMISSION_FIELDS,
