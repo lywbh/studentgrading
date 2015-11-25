@@ -25,7 +25,7 @@ SECRET_KEY=u&ai&6cw@_^9m(^wm)1z529-3$(9av(!=p6ct=8h@io($zza21
 DATABASE_URL=sqlite:////path/to/your/sqlite/file
 ```
 The DATABASE url pattern can be found at
-[kennethreitz/dj-database-url](https://github.com/kennethreitz/dj-database-url)
+[kennethreitz/dj-database-url](https://github.com/kennethreitz/dj-database-url#url-schema)
 
 Use your own setting file(place it in setting directory):
 ```
