@@ -16,12 +16,14 @@ def validate_all_digits_in_string(string):
 class ContactInfo(models.Model):
 
     qq = models.CharField(
+        max_length=50,
         validators=[validate_all_digits_in_string],
         blank=True,
         null=True,
     )
     email = models.EmailField(blank=True, null=True)
     phone = models.CharField(
+        max_length=50,
         validators=[validate_all_digits_in_string],
         blank=True,
         null=True,
@@ -36,22 +38,20 @@ class UserProfile(models.Model):
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL)
     name = models.CharField(max_length=255)
-    sex = models.CharField(choices=SEX_CHOICES, blank=True, null=True)
+    sex = models.CharField(max_length=10, choices=SEX_CHOICES, blank=True, null=True)
     contact_info = models.OneToOneField(ContactInfo, null=True, blank=True)
 
     class Meta:
         abstract = True
 
 
-class Instructor(UserProfile):
-    inst_id = models.CharField(
-        verbose_name=_("instructor's id"),
+class Class(models.Model):
+    class_id = models.CharField(
+        verbose_name=_("student's id"),
         unique=True,
         max_length=255,
         validators=[validate_all_digits_in_string],
     )
-    courses = models.ManyToManyField(Course, through=Teaches, through_fields=('instructor', 'course'))
-
 
 
 class Student(UserProfile):
@@ -82,7 +82,7 @@ class Course(models.Model):
         choices=YEAR_CHOICES,
         default=timezone.now().year,
     )
-    semester = models.CharField(choices=SEMESTER_CHOICES)
+    semester = models.CharField(max_length=10, choices=SEMESTER_CHOICES)
     description = models.TextField(null=True, blank=True)
     min_group_size = models.IntegerField(
         validators=[MinValueValidator(0)],
@@ -98,13 +98,14 @@ class Course(models.Model):
             raise ValidationError('Min size of groups must not be greater than max size.')
 
 
-class Class(models.Model):
-    class_id = models.CharField(
-        verbose_name=_("student's id"),
+class Instructor(UserProfile):
+    inst_id = models.CharField(
+        verbose_name=_("instructor's id"),
         unique=True,
         max_length=255,
         validators=[validate_all_digits_in_string],
     )
+    courses = models.ManyToManyField(Course, through='Teaches', through_fields=('instructor', 'course'))
 
 
 class Group(models.Model):
@@ -121,6 +122,7 @@ class CourseAssignment(models.Model):
     deadline_dtm = models.DateTimeField(default=timezone.now() + datetime.timedelta(days=7))
     assigned_dtm = models.DateTimeField(default=timezone.now())
     grade_ratio = models.DecimalField(max_digits=3, decimal_places=2)
+
 
 class Teaches(models.Model):
     instructor = models.ForeignKey(Instructor)
