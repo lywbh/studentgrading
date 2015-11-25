@@ -9,16 +9,12 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.translation import ugettext_lazy as _
 from django.utils import timezone
 
-SEX_CHOICES = (
-    ('M', 'Male'),
-    ('F', 'Female'),
-)
-
 def validate_all_digits_in_string(string):
     if string.isdigit():
         raise ValidationError('%s is not of all digits' % string)
 
 class ContactInfo(models.Model):
+
     qq = models.CharField(
         validators=[validate_all_digits_in_string],
         blank=True,
@@ -32,6 +28,12 @@ class ContactInfo(models.Model):
     )
 
 class UserProfile(models.Model):
+
+    SEX_CHOICES = (
+        ('M', 'Male'),
+        ('F', 'Female'),
+    )
+
     user = models.OneToOneField(settings.AUTH_USER_MODEL)
     name = models.CharField(max_length=255)
     sex = models.CharField(choices=SEX_CHOICES, blank=True, null=True)
@@ -48,7 +50,7 @@ class Instructor(UserProfile):
         max_length=255,
         validators=[validate_all_digits_in_string],
     )
-    courses = models.ManyToManyField(Course, db_table='teaches')
+    courses = models.ManyToManyField(Course, through=Teaches, through_fields=('instructor', 'course'))
 
 
 
@@ -59,6 +61,8 @@ class Student(UserProfile):
         max_length=255,
         validators=[validate_all_digits_in_string],
     )
+    s_class = models.ForeignKey(Class, verbose_name=_("student's class"))
+
 
 class Course(models.Model):
 
@@ -71,6 +75,7 @@ class Course(models.Model):
         ('AUT', 'Autumn'),
     )
 
+    classes = models.ManyToManyField(Class)
     title = models.CharField(),
     year = models.IntegerField(
         verbose_name=_('year'),
@@ -103,12 +108,14 @@ class Class(models.Model):
 
 
 class Group(models.Model):
-    leader = models.ForeignKey(Student, related_name='leader')
-    members = models.ManyToManyField(Student)
+    course = models.ForeignKey(Course)
+    leader = models.ForeignKey(Student, related_name='leader_of')
+    members = models.ManyToManyField(Student, related_name='member_of')
     contact_info = models.OneToOneField(ContactInfo, null=True, blank=True)
 
 
 class CourseAssignment(models.Model):
+    course = models.ForeignKey(Course)
     title = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
     deadline_dtm = models.DateTimeField(default=timezone.now() + datetime.timedelta(days=7))
@@ -118,4 +125,6 @@ class CourseAssignment(models.Model):
 class Teaches(models.Model):
     instructor = models.ForeignKey(Instructor)
     course = models.ForeignKey(Course)
-    assigns = models.ManyToManyField(CourseAssignment)
+    assignments = models.ManyToManyField(CourseAssignment, db_table='assigns')
+
+
