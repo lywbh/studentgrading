@@ -35,13 +35,14 @@ DJANGO_APPS = (
     'django.contrib.admin',
 )
 THIRD_PARTY_APPS = (
-    'crispy_forms',  # Form layouts
+    # 'crispy_forms',  # Form layouts
 )
 
 # Apps specific for this project go here.
 LOCAL_APPS = (
-    # Your stuff: custom apps go here
-    'studentgrading.users',  # custom users app
+    # custom apps go here
+    'studentgrading.users',  # users app
+    'studentgrading.core',   # core app
 )
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -121,6 +122,15 @@ USE_TZ = True
 # TEMPLATE CONFIGURATION
 # ------------------------------------------------------------------------------
 TEMPLATE_DEBUG = DEBUG
+TEMPLATE_CONTEXT_PROCESSORS = (
+    "django.contrib.auth.context_processors.auth",
+    "django.core.context_processors.debug",
+    "django.core.context_processors.i18n",
+    "django.core.context_processors.media",
+    "django.core.context_processors.static",
+    "django.core.context_processors.tz",
+    "django.contrib.messages.context_processors.messages",
+)
 
 # STATIC FILE CONFIGURATION
 # ------------------------------------------------------------------------------
