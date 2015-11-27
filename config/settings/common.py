@@ -131,6 +131,7 @@ TEMPLATE_CONTEXT_PROCESSORS = (
     "django.core.context_processors.tz",
     "django.contrib.messages.context_processors.messages",
 )
+TEMPLATE_DIRS = [str(APPS_DIR.path('templates')), ]
 
 # STATIC FILE CONFIGURATION
 # ------------------------------------------------------------------------------
