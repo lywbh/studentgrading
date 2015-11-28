@@ -33,8 +33,9 @@ def getTeachCourse(request):
 def getGroup(request):
     if request.method == 'GET':
         if 'course_id' in request.GET and 'group_id' in request.GET:
-            
+            print('a')
         elif 'course_id' in request.GET:
-            
+            print('b')
         else:
+            print('c')
         

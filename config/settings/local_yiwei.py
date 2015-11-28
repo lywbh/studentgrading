@@ -7,6 +7,8 @@ Local settings
 '''
 
 from config.settings.common import *
+import pymysql
+pymysql.install_as_MySQLdb()
 
 # DEBUG
 # ------------------------------------------------------------------------------
