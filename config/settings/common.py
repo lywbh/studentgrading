@@ -10,6 +10,7 @@ https://docs.djangoproject.com/en/1.7/ref/settings/
 from __future__ import absolute_import, unicode_literals
 
 import environ
+import os
 
 ROOT_DIR = environ.Path(__file__) - 3  # (/a/b/myfile.py - 3 = /)
 APPS_DIR = ROOT_DIR.path('studentgrading')
@@ -131,11 +132,14 @@ TEMPLATE_CONTEXT_PROCESSORS = (
     "django.core.context_processors.tz",
     "django.contrib.messages.context_processors.messages",
 )
-TEMPLATE_DIRS = [str(APPS_DIR.path('templates')), ]
+
+TEMPLATE_DIRS = [
+    str(APPS_DIR.path('templates')),
+]
 
 # STATIC FILE CONFIGURATION
 # ------------------------------------------------------------------------------
-STATIC_ROOT = str(ROOT_DIR('staticfiles'))
+STATIC_ROOT = str(ROOT_DIR('studentgrading/'))
 
 STATIC_URL = '/static/'
 

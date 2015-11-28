@@ -7,17 +7,23 @@
 <div class="container">
   <div class="row">
     <div class="col-md-5">
-      <h2>{% trans "Sign In" %}</h2>
 
-      <form class="login" method="POST" action="{% url 'users:login' %}">
+      <form class="login form-group" method="POST" action="{% url 'users:login' %}">
         {% csrf_token %}
+		<h2>{% trans "Sign In" %}</h2>
         <table>
           {{ form.as_table }}
         </table>
+		<div class="checkbox">
+		  <label>
+		    <input type="checkbox"> 记住我
+		  </label>
+		  <span id="info"></span>
+	    </div>
         <button id="sign-in-button" class="btn btn-primary" type="submit">{% trans "Sign In" %}</button>
       </form>
     </div>
   </div>
 </div>
-{% endblock %}
 
+{% endblock %}
