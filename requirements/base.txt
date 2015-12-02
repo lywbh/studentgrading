@@ -19,7 +19,7 @@ django-environ==0.4.0
 # Pillow==3.0.0
 
 # Python-Oracle Database Adapter
-cx_Oracle==5.2
+# cx_Oracle==5.2
 
 # Unicode slugification
 # unicode-slugify==0.1.3
