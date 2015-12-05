@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import datetime
+from decimal import Decimal
 
 from django.db import models
 from django.db.models import F
-from django.db.models import Max
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -69,10 +69,11 @@ class Class(models.Model):
     def __str__(self):
         return self.class_id
 
-    # TODO: delete after test
+    # TODO: delete after tests
     @classmethod
     def get_all_classes(cls):
         return cls.objects.all().values()
+
 
 class Course(models.Model):
 
@@ -100,7 +101,7 @@ class Course(models.Model):
     class Meta:
         unique_together = (('title', 'year', 'semester'), )
 
-    # TODO: delete after test
+    # TODO: delete after tests
     @classmethod
     def get_all_courses(cls):
         return cls.objects.all().values()
@@ -112,7 +113,10 @@ class Course(models.Model):
 
     def clean(self):
         if self.min_group_size > self.max_group_size:
-            raise ValidationError('Min size of groups must not be greater than max size.')
+            raise ValidationError(
+                {'min_group_size': 'Min size of groups must not be greater than max size.',
+                 'max_group_size': 'Min size of groups must not be greater than max size.'}
+            )
 
 
 class Student(UserProfile):
@@ -134,7 +138,7 @@ class Student(UserProfile):
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.s_id)
 
-    # TODO: delete after test
+    # TODO: delete after tests
     @classmethod
     def get_all_students(cls):
         return cls.objects.all().values()
@@ -152,12 +156,17 @@ class Instructor(UserProfile):
         max_length=255,
         validators=[validate_all_digits_in_string],
     )
-    courses = models.ManyToManyField(Course, through='Teaches', through_fields=('instructor', 'course'))
+    courses = models.ManyToManyField(
+        Course,
+        related_name='instructors',
+        through='Teaches',
+        through_fields=('instructor', 'course')
+    )
 
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.inst_id)
 
-    # TODO: delete after test
+    # TODO: delete after tests
     @classmethod
     def get_all_instructors(cls):
         return cls.objects.all().values()
@@ -211,9 +220,9 @@ class Group(models.Model):
     def clean(self):
         # check if number is in the list
         if self.number not in self.NUMBERS_LIST:
-            raise ValidationError('Invalid group number.')
+            raise ValidationError({'number': 'Invalid group number.'})
 
-    # TODO: delete after test
+    # TODO: delete after tests
     @classmethod
     def get_all_groups(cls):
         return cls.objects.all().values()
@@ -225,11 +234,7 @@ class GroupContactInfo(ContactInfo):
 
 class CourseAssignment(models.Model):
 
-    def default_no_in_course(self):
-        return self.course.assignments.all().aggregate(Max('no_in_course')) + 1
-
     course = models.ForeignKey(Course, related_name='assignments')
-    no_in_course = models.IntegerField(default=default_no_in_course)
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     deadline_dtm = models.DateTimeField(
@@ -246,11 +251,37 @@ class CourseAssignment(models.Model):
         verbose_name = "course assignment"
         verbose_name_plural = "course assignments"
 
-    # TODO: add course info
     def __str__(self):
-        return 'No.%s-%s'.format(self.no_in_course, self.title)
+        return '{course}-#{no}-{title}'.format(
+            no=self.no_in_course,
+            title=self.title,
+            course=self.course,
+        )
 
-    # TODO: delete after test
+    def clean(self):
+        # validate grade ratio: (0, 1]
+        if not (Decimal(0) < self.grade_ratio <= Decimal(1.0)):
+            raise ValidationError({'grade_ratio': 'Invalid grade ratio.'})
+
+    def get_no_in_course(self):
+        """
+        Return the ranking digital number of this assignment in its course
+        according to the time assigned
+        """
+        qs_list = []
+        for assignmt in self.course.assignments.all():
+            qs_list.append((assignmt.id, assignmt.assigned_dtm))
+        ranking = 1
+        while qs_list:
+            oldest = min(qs_list, key=lambda e: e[1])
+            if oldest[0] == self.id:
+                break
+            else:
+                ranking += 1
+                qs_list.remove(oldest)
+        return ranking
+
+    # TODO: delete after tests
     @classmethod
     def get_all_assignments(cls):
         return cls.objects.all().values()
@@ -280,7 +311,8 @@ class Teaches(models.Model):
 class Takes(models.Model):
     student = models.ForeignKey(Student)
     course = models.ForeignKey(Course)
-    grade = models.DecimalField(max_digits=5, decimal_places=2, )
+    grade = models.DecimalField(max_digits=5, decimal_places=2,
+                                null=True, blank=True, )
 
     class Meta:
         verbose_name_plural = 'Takes'

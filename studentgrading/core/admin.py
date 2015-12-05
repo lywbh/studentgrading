@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
 
 from django.contrib import admin
-from django.forms.widgets import Widget
-from django.forms.utils import flatatt
-from django.forms import ModelForm
-from django.utils.html import format_html
 
 from .models import (
     Instructor, Student, Course, Class,
@@ -17,7 +13,6 @@ from .models import (
 # Class Admin
 # ------------------------------------------------------------------------------
 class StudentInlineForClass(admin.TabularInline):
-    verbose_name = ''
     model = Student
     extra = 0
 
@@ -81,6 +76,14 @@ class TakesAdmin(admin.ModelAdmin):
 
 # Course Admin
 # ------------------------------------------------------------------------------
+class CourseAdmin(admin.ModelAdmin):
+    list_display = ['title', 'year', 'semester', 'get_instructors', ]
+    fields = ['title', 'year', 'semester', 'description', 'min_group_size',
+              'max_group_size', ]
+
+    def get_instructors(self, obj):
+        return ', '.join(obj.instructors.values_list('name', flat=True).order_by('name'))
+    get_instructors.short_description = 'instructors'
 
 
 # Group Admin
@@ -120,12 +123,16 @@ class TeachesAdmin(admin.ModelAdmin):
 # ------------------------------------------------------------------------------
 class AssignmentAdmin(admin.ModelAdmin):
     list_display = ('course', 'title', 'assigned_dtm', 'deadline_dtm', )
+    fields = ('course', 'get_no_in_course', 'title', 'description', 'assigned_dtm',
+              'deadline_dtm', 'grade_ratio')
+    readonly_fields = ('get_no_in_course', 'assigned_dtm', )
 
 
 admin.site.register(Instructor, InstructorAdmin)
 admin.site.register(Teaches, TeachesAdmin)
 admin.site.register(Student, StudentAdmin)
-admin.site.register(Course)
+admin.site.register(Course, CourseAdmin)
 admin.site.register(Class, ClassAdmin)
 admin.site.register(ContactInfoType)
 admin.site.register(Takes, TakesAdmin)
+admin.site.register(CourseAssignment, AssignmentAdmin)

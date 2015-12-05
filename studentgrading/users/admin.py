@@ -31,6 +31,7 @@ DATE_FIELDS = (_('Important dates'), {
     'fields': ('last_login', 'date_joined',),
 })
 
+
 class StrippedUserAdmin(DjangoUserAdmin):
     # The forms to add and change user instances
     add_form_template = None
@@ -59,6 +60,7 @@ class StrippedUserAdmin(DjangoUserAdmin):
     ordering = None
     filter_horizontal = tuple()
     readonly_fields = ('last_login', 'date_joined')
+
 
 class UserAdmin(StrippedUserAdmin):
     fieldsets = (

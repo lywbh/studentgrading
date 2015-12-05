@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
+from decimal import Decimal
+
 from django.core.management.base import BaseCommand
 
 from studentgrading.users.models import User
-
 from studentgrading.core.models import (
     ContactInfoType, Class, Course, Instructor, Teaches,
-    Student, Takes,
+    Student, Takes, CourseAssignment,
 )
 
 
 class Command(BaseCommand):
     args = 'no args needed'
-    help = 'Add test data to db'
+    help = 'Add tests data to db'
 
     def handle(self, *args, **options):
 
@@ -229,4 +230,34 @@ class Command(BaseCommand):
         Takes.objects.create(student=stu_yifan, course=course_ide, )
         Takes.objects.create(student=stu_yifan, course=course_sep, )
         Takes.objects.create(student=stu_yifan, course=course_fda, )
+
+        # Create assignments
+        assignmnt_dbc_1 = CourseAssignment.objects.create(
+            course=course_dbc,
+            title='Chapter 1 assignment',
+            grade_ratio=Decimal(0.1),
+        )
+        jennifer_teaches_dbc.assignments.add(assignmnt_dbc_1)
+        michael_teaches_dbc.assignments.add(assignmnt_dbc_1)
+
+        assignmnt_ide_1 = CourseAssignment.objects.create(
+            course=course_ide,
+            title='Chapter 1 assignment',
+            grade_ratio=Decimal(0.1),
+        )
+        paul_teaches_ide.assignments.add(assignmnt_ide_1)
+
+        assignmnt_sep_1 = CourseAssignment.objects.create(
+            course=course_sep,
+            title='Chapter 1 assignment',
+            grade_ratio=Decimal(0.1),
+        )
+        dxiao_teaches_sep.assignments.add(assignmnt_sep_1)
+
+        assignmnt_fda_1 = CourseAssignment.objects.create(
+            course=course_fda,
+            title='Chapter 1 assignment',
+            grade_ratio=Decimal(0.1),
+        )
+        michael_teaches_fda.assignments.add(assignmnt_fda_1)
 
