@@ -11,9 +11,11 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.translation import ugettext_lazy as _
 from django.utils import timezone
 
+
 def validate_all_digits_in_string(string):
     if not string.isdigit():
         raise ValidationError('%s is not of all digits' % string)
+
 
 class UserProfile(models.Model):
 
@@ -69,11 +71,6 @@ class Class(models.Model):
     def __str__(self):
         return self.class_id
 
-    # TODO: delete after tests
-    @classmethod
-    def get_all_classes(cls):
-        return cls.objects.all().values()
-
 
 class Course(models.Model):
 
@@ -100,11 +97,6 @@ class Course(models.Model):
 
     class Meta:
         unique_together = (('title', 'year', 'semester'), )
-
-    # TODO: delete after tests
-    @classmethod
-    def get_all_courses(cls):
-        return cls.objects.all().values()
 
     def __str__(self):
         return '{title}-{year}-{semester}'.format(
@@ -138,11 +130,6 @@ class Student(UserProfile):
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.s_id)
 
-    # TODO: delete after tests
-    @classmethod
-    def get_all_students(cls):
-        return cls.objects.all().values()
-
 
 class StudentContactInfo(ContactInfo):
     student = models.ForeignKey(Student)
@@ -166,11 +153,6 @@ class Instructor(UserProfile):
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.inst_id)
 
-    # TODO: delete after tests
-    @classmethod
-    def get_all_instructors(cls):
-        return cls.objects.all().values()
-
 
 class InstructorContactInfo(ContactInfo):
     instructor = models.ForeignKey(Instructor)
@@ -181,23 +163,25 @@ class Group(models.Model):
     NUMBERS_LIST = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
 
     def get_list_of_available_numbers(self):
+        """
+        Get a list of available group number in the course it belongs to
+        """
         numbers_set = set(self.NUMBERS_LIST)
         numbers_used_set = set(
-            Course.objects.get(
-                pk=F('course__pk')
-            ).group_set.values_list('number', flat=True)
+            self.course.group_set.values_list('number', flat=True)
         )
         return list(numbers_set - numbers_used_set)
 
-    # get first available number for default number
     def number_default(self):
-        return sorted(self.get_available_number_list())[0]
+        """
+        Get the first available group number in the course it belongs to
+        """
+        return sorted(self.get_list_of_available_numbers())[0]
 
     # automatically generated group no
     number = models.CharField(
         verbose_name=_('group number'),
         max_length=10,
-        unique=True,
         default=number_default,
     )
     name = models.CharField(
@@ -212,20 +196,17 @@ class Group(models.Model):
 
     # return class full name: YEAR-SEMESTER-NUM[-NAME]
     def __str__(self):
-        return (
-            ('%s-%s-%s' % (F('course__year'), F('course__semester'), self.number)) +
-            (('-%s' % self.name) if self.name else '')
+        return ('{year}-{semester}-{number}'.format(
+                    year=self.course.year,
+                    semester=self.course.semester,
+                    number=self.number,
+                ) + ('-{}'.format(self.name) if self.name else '')
         )
 
     def clean(self):
         # check if number is in the list
         if self.number not in self.NUMBERS_LIST:
             raise ValidationError({'number': 'Invalid group number.'})
-
-    # TODO: delete after tests
-    @classmethod
-    def get_all_groups(cls):
-        return cls.objects.all().values()
 
 
 class GroupContactInfo(ContactInfo):
@@ -280,11 +261,6 @@ class CourseAssignment(models.Model):
                 ranking += 1
                 qs_list.remove(oldest)
         return ranking
-
-    # TODO: delete after tests
-    @classmethod
-    def get_all_assignments(cls):
-        return cls.objects.all().values()
 
 
 class Teaches(models.Model):
