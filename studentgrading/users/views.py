@@ -11,7 +11,7 @@ from django.shortcuts import redirect, render
 from django.core.urlresolvers import reverse
 from django.views.generic import View, DetailView, ListView, RedirectView
 
-from braces.views import LoginRequiredMixin
+#from braces.views import LoginRequiredMixin
 
 from .models import *
 

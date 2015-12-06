@@ -123,6 +123,10 @@ class TeachesFactory(factory.django.DjangoModelFactory):
                 self.assignments.add(assignmt)
 
 
+class InstructorTeachesCourseFactory(InstructorFactory):
+    courses = factory.RelatedFactory(TeachesFactory, 'instructor')
+
+
 class CourseAssignmentFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = CourseAssignment
@@ -138,7 +142,7 @@ class GroupFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Group
 
-    number = Group.number_default()
+   # number = Group.number_default()
     name = factory.Faker('word')
     course = factory.SubFactory(CourseFactory)
     leader = factory.SubFactory(StudentFactory)

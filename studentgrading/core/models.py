@@ -3,6 +3,7 @@
 import datetime
 from decimal import Decimal
 
+
 from django.db import models
 from django.db.models import F
 from django.conf import settings
@@ -11,6 +12,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.translation import ugettext_lazy as _
 from django.utils import timezone
 
+import traceback
 
 def validate_all_digits_in_string(string):
     if not string.isdigit():
@@ -110,6 +112,28 @@ class Course(models.Model):
                  'max_group_size': 'Min size of groups must not be greater than max size.'}
             )
 
+    def get_students(self):
+            return self.student_set.all()
+
+    def get_groups(self):
+            return self.group_set.all()
+
+    def get_assignments(self):
+            return self.assignments.all()
+
+    def add_group(self,members=(),*args,**kwargs):
+        _group = self.group_set.create(*args,**kwargs)
+        _group.members.add(*members)
+
+    def delete_group(self,group):
+        group.delete()
+
+    def add_assignment(self,*args,**kwargs):
+        assi = self.assignments.create(*args,**kwargs)
+    
+    def delete_assignment(self,assignement):
+           assignement.delete()
+       
 
 class Student(UserProfile):
     s_id = models.CharField(
@@ -130,6 +154,8 @@ class Student(UserProfile):
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.s_id)
 
+    def get_courses(self):
+            return self.courses.all()
 
 class StudentContactInfo(ContactInfo):
     student = models.ForeignKey(Student)
@@ -153,6 +179,16 @@ class Instructor(UserProfile):
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.inst_id)
 
+    #@classmethod
+    def get_courses(self, inst_pk):
+            return self.courses.all()
+
+    def add_course(self,*args,**kwargs):
+        new_course = Course.objects.create(*args,**kwargs)
+        Teaches.objects.create(instructor = self,course = new_course)
+
+    def delete_course(self,d_course):
+        d_course.delete()
 
 class InstructorContactInfo(ContactInfo):
     instructor = models.ForeignKey(Instructor)
@@ -182,7 +218,8 @@ class Group(models.Model):
     number = models.CharField(
         verbose_name=_('group number'),
         max_length=10,
-        default=number_default,
+        #default=number_default,
+        null=True,
     )
     name = models.CharField(
         verbose_name=_('group name'),
@@ -191,8 +228,8 @@ class Group(models.Model):
         blank=True,
     )
     course = models.ForeignKey(Course)
-    leader = models.ForeignKey(Student, related_name='leader_of')
-    members = models.ManyToManyField(Student, related_name='member_of')
+    leader = models.ForeignKey(Student, related_name='leader_of',null=True,blank=True)
+    members = models.ManyToManyField(Student, related_name='member_of',null=True,blank=True)
 
     # return class full name: YEAR-SEMESTER-NUM[-NAME]
     def __str__(self):
@@ -217,7 +254,7 @@ class CourseAssignment(models.Model):
 
     course = models.ForeignKey(Course, related_name='assignments')
     title = models.CharField(max_length=255)
-    description = models.TextField(blank=True)
+    description = models.TextField(blank=True,null=True)
     deadline_dtm = models.DateTimeField(
         default=timezone.now() + datetime.timedelta(days=7),
         verbose_name='deadline',
