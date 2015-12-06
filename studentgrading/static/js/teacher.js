@@ -9,11 +9,11 @@ function showAllCourse() {
     for(var i = 0, len = data.length; i < len; ++i) {
         var newtr = $('<tr></tr>');
         var newtd = $(
-            '<td>' + data[i]['fields'].course_name + '</td>' +
-            '<td>' + data[i]['fields'].course_date + '</td>' +
-            '<td>' + data[i]['fields'].course_description + '</td>' +
+            '<td>' + data[i]['fields'].title + '</td>' +
+            '<td>' + data[i]['fields'].semester + data[i]['fields'].year + '</td>' +
+            '<td>' + data[i]['fields'].description + '</td>' +
             '<td>' + data[i]['fields'].course_teacher + '</td>' +
-            '<td><button type="button" class="btn btn-primary btn-lg listbtn" data-toggle="modal" onclick="showCourseDetails(' + data[i]['pk'].course_id + ')">详情</button></td>'
+            '<td><button type="button" class="btn btn-primary btn-lg listbtn" data-toggle="modal" onclick="showCourseDetails(' + data[i]['pk'] + ')">详情</button></td>'
         );
         newtr.append(newtd);
         $('.courselist table tbody').append(newtr);

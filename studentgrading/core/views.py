@@ -19,8 +19,7 @@ def getTeachCourse(request):
             course = Course.getCourseById(request.GET['id'])
             return JsonResponse(course)
         else:
-            #courselist = Course.getCourses()
-            courselist = Course.get_all_courses()
+            courselist = Course.objects.all()
             data = serializers.serialize('json', courselist)
             return HttpResponse(data, content_type = 'application/json')
 
