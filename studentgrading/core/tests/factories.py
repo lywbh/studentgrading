@@ -138,7 +138,6 @@ class GroupFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Group
 
-    number = Group.number_default()
     name = factory.Faker('word')
     course = factory.SubFactory(CourseFactory)
     leader = factory.SubFactory(StudentFactory)

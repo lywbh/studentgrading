@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
-
 import datetime
 from decimal import Decimal
 
 from django.db import models
-from django.db.models import F
+from django.db.utils import IntegrityError
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.translation import ugettext_lazy as _
 from django.utils import timezone
+
+from ..users.models import User
 
 
 def validate_all_digits_in_string(string):
@@ -24,7 +25,10 @@ class UserProfile(models.Model):
         ('F', 'Female'),
     )
 
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, verbose_name='username')
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        verbose_name='username',
+    )
     name = models.CharField(max_length=255)
     sex = models.CharField(max_length=10, choices=SEX_CHOICES, blank=True,)
 
@@ -33,6 +37,40 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        """Check uniqueness of user"""
+        # If self.user is already related to a role, raise error
+        role = get_role_of(self.user)
+        if role and not role == self:
+            raise IntegrityError('user already used')
+
+        super(UserProfile, self).save(*args, **kwargs)
+
+
+def get_role_of(user):
+    """
+    Return an instance of one of the roles:['Student', 'Instructor', 'Assistant',
+    etc] according to a User instance
+
+    If no instance exists, return None
+    """
+    # Get a list of model instance names(lowercase) whose model inherits UserProfile
+    instance_names = [
+        f.get_accessor_name()
+        for f in User._meta.get_all_related_objects()
+        if not f.field.rel.multiple
+    ]
+    # Find the name this user has
+    instance_related_name = None
+    for name in instance_names:
+        if hasattr(user, name):
+            instance_related_name = name
+            break
+
+    if not instance_related_name:
+        return None
+    return getattr(user, instance_related_name)
 
 
 class ContactInfoType(models.Model):
@@ -43,7 +81,6 @@ class ContactInfoType(models.Model):
 
 
 class ContactInfo(models.Model):
-
     info_type = models.ForeignKey(
         ContactInfoType,
         related_name='%(class)s',
@@ -79,6 +116,8 @@ class Course(models.Model):
         ('AUT', 'Autumn'),
     )
 
+    NUMBERS_LIST = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
+
     title = models.CharField(max_length=255)
     year = models.IntegerField(
         default=timezone.now().year,
@@ -109,6 +148,13 @@ class Course(models.Model):
                 {'min_group_size': 'Min size of groups must not be greater than max size.',
                  'max_group_size': 'Min size of groups must not be greater than max size.'}
             )
+
+    def get_next_group_number(self):
+        numbers_set = set(self.NUMBERS_LIST)
+        numbers_used_set = set(
+            self.group_set.values_list('number', flat=True)
+        )
+        return min(numbers_set - numbers_used_set)
 
 
 class Student(UserProfile):
@@ -160,29 +206,11 @@ class InstructorContactInfo(ContactInfo):
 
 class Group(models.Model):
 
-    NUMBERS_LIST = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
-
-    def get_list_of_available_numbers(self):
-        """
-        Get a list of available group number in the course it belongs to
-        """
-        numbers_set = set(self.NUMBERS_LIST)
-        numbers_used_set = set(
-            self.course.group_set.values_list('number', flat=True)
-        )
-        return list(numbers_set - numbers_used_set)
-
-    def number_default(self):
-        """
-        Get the first available group number in the course it belongs to
-        """
-        return sorted(self.get_list_of_available_numbers())[0]
-
-    # automatically generated group no
     number = models.CharField(
         verbose_name=_('group number'),
         max_length=10,
-        default=number_default,
+        default='',
+        blank=True,
     )
     name = models.CharField(
         verbose_name=_('group name'),
@@ -191,11 +219,11 @@ class Group(models.Model):
         blank=True,
     )
     course = models.ForeignKey(Course)
-    leader = models.ForeignKey(Student, related_name='leader_of')
+    leader = models.ForeignKey(Student, related_name='leader_of', blank=True, null=True)
     members = models.ManyToManyField(Student, related_name='member_of')
 
-    # return class full name: YEAR-SEMESTER-NUM[-NAME]
     def __str__(self):
+        """Return class full name: YEAR-SEMESTER-NUM[-NAME]"""
         return ('{year}-{semester}-{number}'.format(
                     year=self.course.year,
                     semester=self.course.semester,
@@ -203,10 +231,29 @@ class Group(models.Model):
                 ) + ('-{}'.format(self.name) if self.name else '')
         )
 
+    def validate_group_number(self):
+        """
+        Check if number is in the number list of its course,
+        or raise ValidationError
+        """
+        if self.number not in self.course.NUMBERS_LIST:
+            raise ValidationError({'number': 'Invalid group number.'})
+
     def clean(self):
         # check if number is in the list
-        if self.number not in self.NUMBERS_LIST:
-            raise ValidationError({'number': 'Invalid group number.'})
+        self.validate_group_number()
+
+    def save(self, *args, **kwargs):
+        # check if number is in the list
+        try:
+            self.validate_group_number()
+        except ValidationError:
+            if self.number:
+                raise
+            # if number is empty, fill in default number
+            self.number = self.course.get_next_group_number()
+
+        super(Group, self).save(*args, **kwargs)
 
 
 class GroupContactInfo(ContactInfo):
