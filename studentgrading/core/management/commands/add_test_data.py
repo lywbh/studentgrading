@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.core.management.base import BaseCommand
 
 from studentgrading.users.models import User
+from studentgrading.core.tests import factories
 from studentgrading.core.models import (
     ContactInfoType, Class, Course, Instructor, Teaches,
     Student, Takes, CourseAssignment,

@@ -144,7 +144,8 @@ class GroupFactory(factory.django.DjangoModelFactory):
 
     @factory.post_generation
     def members(self, create, extracted, **kwargs):
-        if not create: return
+        if not create:
+            return
         if extracted:
             for member in extracted:
                 self.members.add(member)

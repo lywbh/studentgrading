@@ -149,12 +149,13 @@ class Course(models.Model):
                  'max_group_size': 'Min size of groups must not be greater than max size.'}
             )
 
+    def get_used_group_number(self):
+        """Return a list of used group number"""
+        return self.group_set.values_list('number', flat=True)
+
     def get_next_group_number(self):
-        numbers_set = set(self.NUMBERS_LIST)
-        numbers_used_set = set(
-            self.group_set.values_list('number', flat=True)
-        )
-        return min(numbers_set - numbers_used_set)
+        """Return the next available group number"""
+        return min(set(self.NUMBERS_LIST) - set(self.get_used_group_number()))
 
 
 class Student(UserProfile):
@@ -233,18 +234,22 @@ class Group(models.Model):
 
     def validate_group_number(self):
         """
-        Check if number is in the number list of its course,
+        Check if number is not used and is in the number list of its course,
         or raise ValidationError
         """
+        if (not self.course.group_set.filter(pk=self.pk).exists() and
+                self.number in self.course.get_used_group_number()):
+            raise ValidationError({'number': 'Number already used.'})
         if self.number not in self.course.NUMBERS_LIST:
-            raise ValidationError({'number': 'Invalid group number.'})
+            raise ValidationError({'number': 'Number should be in the list.'})
 
     def clean(self):
-        # check if number is in the list
+        # check if number is valid
         self.validate_group_number()
+        pass
 
     def save(self, *args, **kwargs):
-        # check if number is in the list
+        # check if number is valid
         try:
             self.validate_group_number()
         except ValidationError:
