@@ -123,6 +123,10 @@ class TeachesFactory(factory.django.DjangoModelFactory):
                 self.assignments.add(assignmt)
 
 
+class InstructorTeachesCourseFactory(InstructorFactory):
+    courses = factory.RelatedFactory(TeachesFactory, 'instructor')
+
+
 class CourseAssignmentFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = CourseAssignment

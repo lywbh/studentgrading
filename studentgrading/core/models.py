@@ -2,6 +2,7 @@
 import datetime
 from decimal import Decimal
 
+
 from django.db import models
 from django.db.utils import IntegrityError
 from django.conf import settings
@@ -157,6 +158,22 @@ class Course(models.Model):
         """Return the next available group number"""
         return min(set(self.NUMBERS_LIST) - set(self.get_used_group_number()))
 
+    def get_students(self):
+            return self.student_set.all()
+
+    def get_groups(self):
+            return self.group_set.all()
+
+    def get_assignments(self):
+            return self.assignments.all()
+
+    def add_group(self, members=(), *args, **kwargs):
+        group = self.group_set.create(*args, **kwargs)
+        group.members.add(*members)
+
+    def add_assignment(self, *args, **kwargs):
+        self.assignments.create(*args, **kwargs)
+
 
 class Student(UserProfile):
     s_id = models.CharField(
@@ -176,6 +193,9 @@ class Student(UserProfile):
 
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.s_id)
+
+    def get_courses(self):
+            return self.courses.all()
 
 
 class StudentContactInfo(ContactInfo):
@@ -199,6 +219,16 @@ class Instructor(UserProfile):
 
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.inst_id)
+
+    def get_courses(self):
+        return self.courses.all()
+
+    def add_course(self, *args, **kwargs):
+        new_course = Course.objects.create(*args, **kwargs)
+        Teaches.objects.create(instructor=self, course=new_course)
+
+    def delete_course(self, d_course):
+        d_course.delete()
 
 
 class InstructorContactInfo(ContactInfo):
@@ -225,11 +255,12 @@ class Group(models.Model):
 
     def __str__(self):
         """Return class full name: YEAR-SEMESTER-NUM[-NAME]"""
-        return ('{year}-{semester}-{number}'.format(
-                    year=self.course.year,
-                    semester=self.course.semester,
-                    number=self.number,
-                ) + ('-{}'.format(self.name) if self.name else '')
+        return (
+            '{year}-{semester}-{number}'.format(
+                year=self.course.year,
+                semester=self.course.semester,
+                number=self.number,
+            ) + ('-{}'.format(self.name) if self.name else '')
         )
 
     def validate_group_number(self):
@@ -269,7 +300,7 @@ class CourseAssignment(models.Model):
 
     course = models.ForeignKey(Course, related_name='assignments')
     title = models.CharField(max_length=255)
-    description = models.TextField(blank=True)
+    description = models.TextField(blank=True, null=True)
     deadline_dtm = models.DateTimeField(
         default=timezone.now() + datetime.timedelta(days=7),
         verbose_name='deadline',

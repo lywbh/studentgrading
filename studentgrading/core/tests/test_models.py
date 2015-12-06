@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import unittest
-
 from test_plus.test import TestCase
 from django.db.utils import IntegrityError
 from django.core.exceptions import ValidationError
@@ -24,15 +22,6 @@ class StudentMethodTests(TestCase):
 
     def test_students(self):
         pass
-
-
-class CourseMethodTests(TestCase):
-
-    def test_get_next_group_number(self):
-        course = factories.CourseFactory()
-        self.assertEqual(course.get_next_group_number(), course.NUMBERS_LIST[0])
-        factories.GroupFactory(course=course)
-        self.assertEqual(course.get_next_group_number(), course.NUMBERS_LIST[1])
 
 
 class CourseAssignmentMethodTests(TestCase):
@@ -78,3 +67,43 @@ class ModelTests(TestCase):
 
         instructor = factories.InstructorFactory(user=user)
         self.assertEqual(get_role_of(user), instructor)
+
+
+class CourseMethodTests(TestCase):
+
+    def test_get_next_group_number(self):
+        course = factories.CourseFactory()
+        self.assertEqual(course.get_next_group_number(), course.NUMBERS_LIST[0])
+        factories.GroupFactory(course=course)
+        self.assertEqual(course.get_next_group_number(), course.NUMBERS_LIST[1])
+
+    def test_add_group(self):
+        course = factories.CourseFactory()
+        stu = factories.StudentFactory()
+        self.assertEqual(course.group_set.count(), 0)
+
+        course.add_group(
+            members=(stu,),
+            name='Hello_world',
+            leader=factories.StudentFactory(),
+        )
+        self.assertEqual(course.group_set.count(), 1)
+
+    def test_add_assignemnt(self):
+        course = factories.CourseFactory()
+        self.assertEqual(course.assignments.count(),0)
+
+        course.add_assignment(title="ass1",grade_ratio=0.1)
+
+        self.assertEqual(course.assignments.count(),1)
+    
+
+class InstructorMethodTests(TestCase):
+
+    def test_add_course(self):
+        instructor = factories.InstructorFactory()
+        self.assertEqual(instructor.courses.count(), 0)
+
+        instructor.add_course(title="DS")
+
+        self.assertEqual(instructor.courses.count(), 1)
