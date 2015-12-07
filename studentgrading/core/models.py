@@ -2,7 +2,6 @@
 import datetime
 from decimal import Decimal
 
-
 from django.db import models
 from django.db.utils import IntegrityError
 from django.conf import settings
@@ -158,13 +157,13 @@ class Course(models.Model):
         """Return the next available group number"""
         return min(set(self.NUMBERS_LIST) - set(self.get_used_group_number()))
 
-    def get_students(self):
+    def get_all_students(self):
             return self.student_set.all()
 
-    def get_groups(self):
+    def get_all_groups(self):
             return self.group_set.all()
 
-    def get_assignments(self):
+    def get_all_assignments(self):
             return self.assignments.all()
 
     def add_group(self, members=(), *args, **kwargs):
@@ -194,8 +193,8 @@ class Student(UserProfile):
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.s_id)
 
-    def get_courses(self):
-            return self.courses.all()
+    def get_all_courses(self):
+        return self.courses.all()
 
 
 class StudentContactInfo(ContactInfo):
@@ -220,15 +219,26 @@ class Instructor(UserProfile):
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.inst_id)
 
-    def get_courses(self):
+    def get_all_courses(self):
         return self.courses.all()
+
+    def get_course(self, pk):
+        try:
+            return self.courses.get(pk=pk)
+        except Course.DoesNotExist:
+            return None
 
     def add_course(self, *args, **kwargs):
         new_course = Course.objects.create(*args, **kwargs)
         Teaches.objects.create(instructor=self, course=new_course)
 
-    def delete_course(self, d_course):
-        d_course.delete()
+    def delete_course(self, pk):
+        try:
+            course = self.courses.get(pk=pk)
+        except Course.DoesNotExist:
+            pass
+        else:
+            course.delete()
 
 
 class InstructorContactInfo(ContactInfo):
