@@ -2,6 +2,7 @@
 from test_plus.test import TestCase
 from django.db.utils import IntegrityError
 from django.core.exceptions import ValidationError
+from django.core.urlresolvers import reverse
 
 from . import factories
 from studentgrading.core.models import (
@@ -68,6 +69,23 @@ class ModelTests(TestCase):
         instructor = factories.InstructorFactory(user=user)
         self.assertEqual(get_role_of(user), instructor)
 
+        # test login and retrieve user
+        user1 = factories.UserFactory(username='test1234', password='abcd1234')
+        instructor1 = factories.InstructorFactory(user=user1)
+        self.post(
+            reverse('users:login'),
+            data={'username': 'test1234', 'password': 'abcd1234'},
+        )
+        self.get(
+            reverse('users:login'),
+        )
+
+        from django.contrib.auth import authenticate
+        from studentgrading.users.models import User
+        User.objects.create_superuser(username='admin', password='sep2015')
+        user2 = authenticate(username='admin', password='sep2015')
+        print(get_role_of(user2))
+
 
 class CourseMethodTests(TestCase):
 
@@ -107,3 +125,4 @@ class InstructorMethodTests(TestCase):
         instructor.add_course(title="DS")
 
         self.assertEqual(instructor.courses.count(), 1)
+
