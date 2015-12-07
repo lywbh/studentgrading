@@ -198,7 +198,7 @@ class Student(UserProfile):
 
 
 class StudentContactInfo(ContactInfo):
-    student = models.ForeignKey(Student)
+    student = models.ForeignKey(Student, related_name='contact_infos')
 
 
 class Instructor(UserProfile):
@@ -242,7 +242,7 @@ class Instructor(UserProfile):
 
 
 class InstructorContactInfo(ContactInfo):
-    instructor = models.ForeignKey(Instructor)
+    instructor = models.ForeignKey(Instructor, related_name='contact_infos')
 
 
 class Group(models.Model):
@@ -303,7 +303,7 @@ class Group(models.Model):
 
 
 class GroupContactInfo(ContactInfo):
-    group = models.ForeignKey(Group)
+    group = models.ForeignKey(Group, related_name='contact_infos')
 
 
 class CourseAssignment(models.Model):
