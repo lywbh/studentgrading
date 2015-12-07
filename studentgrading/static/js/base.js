@@ -4,6 +4,7 @@
        url: 'getcourse',
        async: false,
        success: function(data) {
+           console.log(data);
            ret = data;
        },
        fail: function(data) {
@@ -18,7 +19,8 @@ function getCourse(id) {
     $.ajax({
        url: 'getcourse?id=' + id,
        async: false,
-       seccess: function(data) {
+       success: function(data) {
+           console.log(data);
            ret = data;
        },
        fail: function(data) {
@@ -34,6 +36,7 @@ function getAllGroup(course_id) {
        url: 'getgroup?course_id=' + course_id,
        async: false,
        success: function(data) {
+           console.log(data);
            ret = data;
        },
        fail: function(data) {
@@ -46,9 +49,46 @@ function getAllGroup(course_id) {
 function getGroup(course_id, group_id) {
     var ret;
     $.ajax({
-       url: 'getgroup?course_id=' + course_id + 'group_id=' + group_id,
+       url: 'getgroup?course_id=' + course_id + '&group_id=' + group_id,
        async: false,
        success: function(data) {
+           console.log(data);
+           ret = data;
+       },
+       fail: function(data) {
+           console.log(data);
+       }
+    });
+    return ret;
+}
+
+function newCourse(data) {
+    var ret;
+    $.ajax({
+       url: 'newcourse/',
+       type: 'POST',
+       data: data,
+       async: false,
+       success: function(data) {
+           console.log(data);
+           ret = data;
+       },
+       fail: function(data) {
+           console.log(data);
+       }
+    });
+    return ret;
+}
+
+function delCourse(data) {
+    var ret;
+    $.ajax({
+       url: 'delcourse/',
+       type: 'POST',
+       data: data,
+       async: false,
+       success: function(data) {
+           console.log(data);
            ret = data;
        },
        fail: function(data) {

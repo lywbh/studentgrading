@@ -20,4 +20,14 @@ urlpatterns = patterns(
         views.getGroup,
         name='getgroup',
     ),
+    url(
+        r'^teacher/newcourse/$',
+        views.newCourse,
+        name='newcourse',
+    ),
+    url(
+        r'^teacher/delcourse/$',
+        views.delCourse,
+        name='delcourse',
+    ),
 )
