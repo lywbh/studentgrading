@@ -209,9 +209,14 @@ class Course(models.Model):
         group = self.group_set.create(*args, **kwargs)
         group.members.add(*members)
 
-    # TODO: this method should be put in Instructor
     def add_assignment(self, *args, **kwargs):
         self.assignments.create(*args, **kwargs)
+
+    def get_group(self, group_id):
+        try:
+            return self.group_set.get(number=group_id)
+        except Group.DoesNotExist:
+            return None
 
 
 class Student(UserProfile):
@@ -287,6 +292,7 @@ class Instructor(UserProfile):
             return None
 
     def add_course(self, *args, **kwargs):
+        """Add a course to instructor itself"""
         new_course = Course.objects.create(*args, **kwargs)
         Teaches.objects.create(instructor=self, course=new_course)
 
