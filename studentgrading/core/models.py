@@ -3,7 +3,6 @@ import datetime
 from decimal import Decimal
 
 from django.db import models
-from django.db.utils import IntegrityError
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -13,11 +12,15 @@ from django.utils import timezone
 from ..users.models import User
 
 
+# Helper Functions
+# ------------------------------------------------------------------------------
 def validate_all_digits_in_string(string):
     if not string.isdigit():
         raise ValidationError('%s is not of all digits' % string)
 
 
+# Model Classes
+# ------------------------------------------------------------------------------
 class UserProfile(models.Model):
 
     SEX_CHOICES = (
@@ -29,8 +32,8 @@ class UserProfile(models.Model):
         settings.AUTH_USER_MODEL,
         verbose_name='username',
     )
-    name = models.CharField(max_length=255)
-    sex = models.CharField(max_length=10, choices=SEX_CHOICES, blank=True,)
+    name = models.CharField(max_length=255, )
+    sex = models.CharField(max_length=10, choices=SEX_CHOICES, blank=True)
 
     class Meta:
         abstract = True
@@ -38,39 +41,25 @@ class UserProfile(models.Model):
     def __str__(self):
         return self.name
 
-    def save(self, *args, **kwargs):
-        """Check uniqueness of user"""
-        # If self.user is already related to a role, raise error
+    def validate_not_empty_fields(self):
+        """Make sure certain char or text fields are not empty"""
+        # name field should not be empty
+        if not self.name:
+            raise ValidationError({'name': 'empty name'})
+
+    def validate_user_uniqueness(self):
+        """One user can only be bound to one role(Student, Instructor, etc"""
         role = get_role_of(self.user)
         if role and not role == self:
-            raise IntegrityError('user already used')
+            raise ValidationError('user already used')
 
+    def clean(self):
+        self.validate_user_uniqueness()
+
+    def save(self, *args, **kwargs):
+        UserProfile.validate_not_empty_fields(self)
+        self.validate_user_uniqueness()
         super(UserProfile, self).save(*args, **kwargs)
-
-
-def get_role_of(user):
-    """
-    Return an instance of one of the roles:['Student', 'Instructor', 'Assistant',
-    etc] according to a User instance
-
-    If no instance exists, return None
-    """
-    # Get a list of model instance names(lowercase) whose model inherits UserProfile
-    instance_names = [
-        f.get_accessor_name()
-        for f in User._meta.get_all_related_objects()
-        if not f.field.rel.multiple
-    ]
-    # Find the name this user has
-    instance_related_name = None
-    for name in instance_names:
-        if hasattr(user, name):
-            instance_related_name = name
-            break
-
-    if not instance_related_name:
-        return None
-    return getattr(user, instance_related_name)
 
 
 class ContactInfoType(models.Model):
@@ -78,6 +67,23 @@ class ContactInfoType(models.Model):
 
     def __str__(self):
         return self.type_string
+
+    def validate_type_string_uniqueness(self):
+        """Check if type string is unique no matter the case."""
+        if ContactInfoType.objects.filter(
+            type_string__iexact=self.type_string
+        ).exists():
+            raise ValidationError({'type_string': 'Type already exists.'})
+
+    def clean(self):
+        self.validate_type_string_uniqueness()
+
+    def save(self, *args, **kwargs):
+        self.validate_type_string_uniqueness()
+        # Validate type_string is not empty
+        if self.type_string is '':
+            raise ValidationError({'type_string': 'Type is empty.'})
+        super(ContactInfoType, self).save(*args, **kwargs)
 
 
 class ContactInfo(models.Model):
@@ -93,6 +99,15 @@ class ContactInfo(models.Model):
     def __str__(self):
         return '{}'.format(self.content)
 
+    def validate_not_empty_fields(self):
+        """Make sure certain char or text fields are not empty"""
+        if not self.content:
+            raise ValidationError({'content': 'empty content'})
+
+    def save(self, *args, **kwargs):
+        self.validate_not_empty_fields()
+        super(ContactInfo, self).save(*args, **kwargs)
+
 
 class Class(models.Model):
     class_id = models.CharField(
@@ -107,6 +122,15 @@ class Class(models.Model):
 
     def __str__(self):
         return self.class_id
+
+    def validate_not_empty_fields(self):
+        """Make sure certain char or text fields are not empty"""
+        if not self.class_id:
+            raise ValidationError({'class_id': 'empty class ID'})
+
+    def save(self, *args, **kwargs):
+        self.validate_not_empty_fields()
+        super(Class, self).save(*args, **kwargs)
 
 
 class Course(models.Model):
@@ -142,20 +166,35 @@ class Course(models.Model):
             title=self.title, year=self.year, semester=self.semester,
         )
 
-    def clean(self):
+    def validate_not_empty_fields(self):
+        """Make sure certain char or text fields are not empty"""
+        if not self.title:
+            raise ValidationError({'title': 'empty course title'})
+        if not self.semester:
+            raise ValidationError({'semester': 'empty course semester'})
+
+    def validate_group_size(self):
         if self.min_group_size > self.max_group_size:
             raise ValidationError(
                 {'min_group_size': 'Min size of groups must not be greater than max size.',
                  'max_group_size': 'Min size of groups must not be greater than max size.'}
             )
 
-    def get_used_group_number(self):
+    def clean(self):
+        self.validate_group_size()
+
+    def save(self, *args, **kwargs):
+        self.validate_not_empty_fields()
+        self.validate_group_size()
+        super(Course, self).save(*args, **kwargs)
+
+    def get_used_group_numbers(self):
         """Return a list of used group number"""
         return self.group_set.values_list('number', flat=True)
 
     def get_next_group_number(self):
         """Return the next available group number"""
-        return min(set(self.NUMBERS_LIST) - set(self.get_used_group_number()))
+        return min(set(self.NUMBERS_LIST) - set(self.get_used_group_numbers()))
 
     def get_all_students(self):
             return self.student_set.all()
@@ -170,6 +209,7 @@ class Course(models.Model):
         group = self.group_set.create(*args, **kwargs)
         group.members.add(*members)
 
+    # TODO: this method should be put in Instructor
     def add_assignment(self, *args, **kwargs):
         self.assignments.create(*args, **kwargs)
 
@@ -184,14 +224,22 @@ class Student(UserProfile):
     s_class = models.ForeignKey(Class, verbose_name=_("student's class"))
     courses = models.ManyToManyField(
         Course,
-        null=True,
-        blank=True,
         through='Takes',
         through_fields=('student', 'course')
     )
 
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.s_id)
+
+    def validate_not_empty_fields(self):
+        """Make sure certain char or text fields are not empty"""
+        super(Student, self).validate_not_empty_fields()
+        if not self.s_id:
+            raise ValidationError({'s_id': 'empty student ID'})
+
+    def save(self, *args, **kwargs):
+        self.validate_not_empty_fields()
+        super(Student, self).save(*args, **kwargs)
 
     def get_all_courses(self):
         return self.courses.all()
@@ -218,6 +266,16 @@ class Instructor(UserProfile):
 
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.inst_id)
+
+    def validate_not_empty_fields(self):
+        """Make sure certain char or text fields are not empty"""
+        super(Instructor, self).validate_not_empty_fields()
+        if not self.inst_id:
+            raise ValidationError({'inst_id': 'empty instructor ID'})
+
+    def save(self, *args, **kwargs):
+        self.validate_not_empty_fields()
+        super(Instructor, self).save(*args, **kwargs)
 
     def get_all_courses(self):
         return self.courses.all()
@@ -279,7 +337,7 @@ class Group(models.Model):
         or raise ValidationError
         """
         if (not self.course.group_set.filter(pk=self.pk).exists() and
-                self.number in self.course.get_used_group_number()):
+                self.number in self.course.get_used_group_numbers()):
             raise ValidationError({'number': 'Number already used.'})
         if self.number not in self.course.NUMBERS_LIST:
             raise ValidationError({'number': 'Number should be in the list.'})
@@ -287,7 +345,6 @@ class Group(models.Model):
     def clean(self):
         # check if number is valid
         self.validate_group_number()
-        pass
 
     def save(self, *args, **kwargs):
         # check if number is valid
@@ -310,7 +367,7 @@ class CourseAssignment(models.Model):
 
     course = models.ForeignKey(Course, related_name='assignments')
     title = models.CharField(max_length=255)
-    description = models.TextField(blank=True, null=True)
+    description = models.TextField(blank=True)
     deadline_dtm = models.DateTimeField(
         default=timezone.now() + datetime.timedelta(days=7),
         verbose_name='deadline',
@@ -332,10 +389,24 @@ class CourseAssignment(models.Model):
             course=self.course,
         )
 
-    def clean(self):
-        # validate grade ratio: (0, 1]
+    def validate_not_empty_fields(self):
+        """Make sure certain char or text fields are not empty"""
+        if not self.title:
+            raise ValidationError({'title': 'empty title'})
+
+    def validate_grade_ratio(self):
+        """Make sure ratio is (0, 1]"""
         if not (Decimal(0) < self.grade_ratio <= Decimal(1.0)):
-            raise ValidationError({'grade_ratio': 'Invalid grade ratio.'})
+            raise ValidationError({'grade_ratio': 'Grade ratio should be in (0, 1].'})
+
+    def clean(self):
+        self.validate_grade_ratio()
+
+    def save(self, *args, **kwargs):
+        self.validate_not_empty_fields()
+        self.validate_grade_ratio()
+
+        super(CourseAssignment, self).save(*args, **kwargs)
 
     def get_no_in_course(self):
         """
@@ -359,10 +430,9 @@ class CourseAssignment(models.Model):
 class Teaches(models.Model):
     instructor = models.ForeignKey(Instructor)
     course = models.ForeignKey(Course)
-    assignments = models.ManyToManyField(CourseAssignment, db_table='assigns')
 
     class Meta:
-        verbose_name_plural = "Teaches"
+        verbose_name_plural = "teaches"
 
     def __str__(self):
         return '{course_title}-{inst}-{course_year}-{course_semester}'.format(
@@ -384,10 +454,50 @@ class Takes(models.Model):
                                 null=True, blank=True, )
 
     class Meta:
-        verbose_name_plural = 'Takes'
+        verbose_name_plural = 'takes'
+
+    def validate_grade(self):
+        """Check grade is in [0, 100]"""
+        if not (0 <= self.grade <= 100):
+            raise ValidationError({'grade': 'Grade should be in [0, 100]'})
+
+    def clean(self):
+        self.validate_grade()
+
+    def save(self, *args, **kwargs):
+        self.validate_grade()
+        super(Takes, self).save(*args, **kwargs)
 
     def __str__(self):
         return '{stu}-{course}'.format(
             stu=self.student.__str__(),
             course=self.course.__str__(),
         )
+
+
+# Global Functions
+# ------------------------------------------------------------------------------
+def get_role_of(user):
+    """
+    Return an instance of one of the roles:['Student', 'Instructor', 'Assistant',
+    etc] according to a User instance
+
+    If no instance exists, return None
+    """
+    # Get a list of model instance names(lowercase) whose model inherits UserProfile
+    instance_names = [
+        f.get_accessor_name()
+        for f in User._meta.get_all_related_objects()
+        if not f.field.rel.multiple
+    ]
+    # Find the name this user has
+    instance_related_name = None
+    for name in instance_names:
+        if hasattr(user, name):
+            instance_related_name = name
+            break
+
+    if not instance_related_name:
+        return None
+    return getattr(user, instance_related_name)
+

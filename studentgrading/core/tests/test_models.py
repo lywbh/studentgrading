@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 from test_plus.test import TestCase
-from django.db.utils import IntegrityError
 from django.core.exceptions import ValidationError
 from django.core.urlresolvers import reverse
 
 from . import factories
 from studentgrading.core.models import (
-    get_role_of,
+    get_role_of, ContactInfoType,
 )
 
 
@@ -14,15 +13,98 @@ class UserTests(TestCase):
 
     def test_save(self):
         user1 = factories.UserFactory()
+        # user uniqueness
         factories.StudentFactory(user=user1)
-        with self.assertRaises(IntegrityError):
+        with self.assertRaises(ValidationError):
             factories.InstructorFactory(user=user1)
+
+        # name not empty
+        with self.assertRaises(ValidationError):
+            factories.StudentFactory(name='')
+
+    def test_clean(self):
+        from studentgrading.core.models import Student, Instructor
+        user1 = factories.UserFactory()
+        # name not empty
+        stu1 = Student(user=user1, s_id='2012211165', s_class=factories.ClassFactory())
+        with self.assertRaises(ValidationError):
+            stu1.full_clean()
+
+        # user uniqueness
+        inst1 = Instructor(user=user1, inst_id='1043678')
+        with self.assertRaises(ValidationError):
+            inst1.full_clean()
+
+
+class ContactInfoTypeTests(TestCase):
+
+    def test_save(self):
+        # type str not empty
+        with self.assertRaises(ValidationError):
+            factories.ContactInfoTypeFactory(type_string='')
+
+        # type str uniqueness
+        factories.ContactInfoTypeFactory(type_string='QQ')
+        with self.assertRaises(ValidationError):
+            factories.ContactInfoTypeFactory(type_string='qq')
+
+    def test_clean(self):
+        # type str uniqueness
+        from studentgrading.core.models import ContactInfoType
+        factories.ContactInfoTypeFactory(type_string='QQ')
+        cont1 = ContactInfoType(type_string='qq')
+        with self.assertRaises(ValidationError):
+            cont1.full_clean()
+
+        # type str not empty
+        cont1.type_string = ''
+        with self.assertRaises(ValidationError):
+            cont1.full_clean()
+
+
+class ContactInfoTests(TestCase):
+
+    def test_save(self):
+        with self.assertRaises(ValidationError):
+            factories.StudentContactInfoFactory(content='')
+
+
+class ClassTests(TestCase):
+
+    def test_save(self):
+        with self.assertRaises(ValidationError):
+            factories.ClassFactory(class_id='')
+
+
+class CourseTests(TestCase):
+
+    def test_save(self):
+        # not empty fields
+        with self.assertRaises(ValidationError) as cm:
+            factories.CourseFactory(title='')
+        self.assertTrue(cm.exception.message_dict.get('title'))
+        with self.assertRaises(ValidationError) as cm:
+            factories.CourseFactory(semester='')
+        self.assertTrue(cm.exception.message_dict.get('semester'))
+
+        # check group size
+        with self.assertRaises(ValidationError) as cm:
+            factories.CourseFactory(min_group_size=2, max_group_size=1)
+        self.assertTrue(cm.exception.message_dict.get('min_group_size'))
+        self.assertTrue(cm.exception.message_dict.get('max_group_size'))
+
+        try:
+            factories.CourseFactory(min_group_size=2, max_group_size=2)
+        except Exception as e:
+            self.fail(str(e))
 
 
 class StudentMethodTests(TestCase):
 
-    def test_students(self):
-        pass
+    def test_save(self):
+        with self.assertRaises(ValidationError) as cm:
+            factories.StudentFactory(s_id='')
+        self.assertTrue(cm.exception.message_dict.get('s_id'))
 
 
 class CourseAssignmentMethodTests(TestCase):
@@ -48,16 +130,36 @@ class GroupMethodTests(TestCase):
         self.assertEqual(grp2.number, course.NUMBERS_LIST[1])
 
         # provide custom number
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(ValidationError) as cm:
             factories.GroupFactory(course=course, number=grp1.number)
+        self.assertTrue(cm.exception.message_dict.get('number'))
         self.assertEqual(course.get_next_group_number(), course.NUMBERS_LIST[2])
-        with self.assertRaises(ValidationError):
+
+        with self.assertRaises(ValidationError) as cm:
             factories.GroupFactory(course=course, number='1')
+        self.assertTrue(cm.exception.message_dict.get('number'))
 
         # delete and add
         grp1.delete()
         grp3 = factories.GroupFactory(course=course)
         self.assertEqual(grp3.number, course.NUMBERS_LIST[0])
+
+    def test_clean(self):
+        # check number
+        from studentgrading.core.models import Group
+        grp1 = Group(name='hello_world', course=factories.CourseFactory())
+        grp1.number = '1'
+        with self.assertRaises(ValidationError) as cm:
+            grp1.full_clean()
+        self.assertTrue(cm.exception.message_dict.get('number'))
+
+        grp1.number = 'B'
+        grp1.save()
+        grp2 = Group(name='hello_china', course=grp1.course)
+        grp2.number = 'B'
+        with self.assertRaises(ValidationError) as cm:
+            grp2.full_clean()
+        self.assertTrue(cm.exception.message_dict.get('number'))
 
 
 class ModelTests(TestCase):
@@ -84,7 +186,6 @@ class ModelTests(TestCase):
         from studentgrading.users.models import User
         User.objects.create_superuser(username='admin', password='sep2015')
         user2 = authenticate(username='admin', password='sep2015')
-        print(get_role_of(user2))
 
 
 class CourseMethodTests(TestCase):
@@ -111,10 +212,43 @@ class CourseMethodTests(TestCase):
         course = factories.CourseFactory()
         self.assertEqual(course.assignments.count(),0)
 
-        course.add_assignment(title="ass1",grade_ratio=0.1)
+        course.add_assignment(title="ass1", grade_ratio=0.1)
 
         self.assertEqual(course.assignments.count(),1)
-    
+
+
+class CourseAssignmentTests(TestCase):
+
+    def test_clean(self):
+        from studentgrading.core.models import CourseAssignment
+        crs1 = CourseAssignment(
+            course=factories.CourseFactory(),
+            title='',
+            grade_ratio=0.1,
+        )
+        with self.assertRaises(ValidationError) as cm:
+            crs1.full_clean()
+        self.assertIn('title', cm.exception.message_dict)
+
+    def test_save(self):
+        # empty title
+        with self.assertRaises(ValidationError) as cm:
+            factories.CourseAssignmentFactory(title='')
+        self.assertIn('title', cm.exception.message_dict)
+
+        # invalid grade ratio
+        with self.assertRaises(ValidationError) as cm:
+            factories.CourseAssignmentFactory(grade_ratio=0)
+        self.assertIn('grade_ratio', cm.exception.message_dict)
+
+        with self.assertRaises(ValidationError) as cm:
+            factories.CourseAssignmentFactory(grade_ratio=-0.1)
+        self.assertIn('grade_ratio', cm.exception.message_dict)
+
+        with self.assertRaises(ValidationError) as cm:
+            factories.CourseAssignmentFactory(grade_ratio=1.1)
+        self.assertIn('grade_ratio', cm.exception.message_dict)
+
 
 class InstructorMethodTests(TestCase):
 
@@ -122,7 +256,20 @@ class InstructorMethodTests(TestCase):
         instructor = factories.InstructorFactory()
         self.assertEqual(instructor.courses.count(), 0)
 
-        instructor.add_course(title="DS")
+    def test_save(self):
+        with self.assertRaises(ValidationError) as cm:
+            factories.InstructorFactory(inst_id='')
+        self.assertTrue(cm.exception.message_dict.get('inst_id'))
 
-        self.assertEqual(instructor.courses.count(), 1)
 
+class TakesTests(TestCase):
+
+    def test_save(self):
+        # invalid grade
+        with self.assertRaises(ValidationError) as cm:
+            factories.TakesFactory(grade=-1)
+        self.assertIn('grade', cm.exception.message_dict)
+
+        with self.assertRaises(ValidationError) as cm:
+            factories.TakesFactory(grade=101)
+        self.assertIn('grade', cm.exception.message_dict)

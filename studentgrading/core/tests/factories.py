@@ -9,7 +9,8 @@ from faker.providers import BaseProvider
 from studentgrading.users.models import User
 from studentgrading.core.models import (
     CourseAssignment, Course, UserProfile, Student, Instructor,
-    Class, Takes, Teaches, Group
+    Class, Takes, Teaches, Group, ContactInfoType, ContactInfo,
+    StudentContactInfo, InstructorContactInfo, GroupContactInfo,
 )
 
 
@@ -27,10 +28,6 @@ class CourseProvider(BaseProvider):
 
     def course_year(self):
         return self.courses[random.randint(0, len(self.courses) - 1)]['year']
-
-    def course_semester(self):
-        choices = Course.SEMESTER_CHOICES
-        return choices[random.randint(0, len(choices) - 1)][0]
 
 factory.Faker.add_provider(CourseProvider)
 
@@ -62,6 +59,35 @@ class UserProfileFactory(factory.django.DjangoModelFactory):
     )
 
 
+class ContactInfoTypeFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = ContactInfoType
+
+    type_string = factory.Iterator(['QQ', 'Email', 'Phone'])
+
+
+class ContactInfoFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = ContactInfo
+        abstract = True
+
+    info_type = factory.SubFactory(ContactInfoTypeFactory)
+
+    @factory.lazy_attribute_sequence
+    def content(self, n):
+        type_str = self.info_type.type_string
+        if type_str.lower() == 'qq':
+            return '{0}'.format(random.randint(100000, 999999999))
+        elif type_str.lower() == 'email':
+            from faker import Factory
+            return Factory.create().free_email()
+        elif type_str.lower() == 'phone':
+            from faker import Factory
+            return Factory.create(locale='zh_CN').phone_number()
+        else:
+            return 'contact#{0}'.format(n)
+
+
 class ClassFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Class
@@ -75,7 +101,9 @@ class CourseFactory(factory.django.DjangoModelFactory):
 
     title = factory.Faker('course_title')
     year = factory.Faker('course_year')
-    semester = factory.Faker('course_semester')
+    semester = factory.Iterator(
+        [Course.SEMESTER_CHOICES[0][0], Course.SEMESTER_CHOICES[1][0]]
+    )
 
 
 class StudentFactory(UserProfileFactory):
@@ -84,6 +112,13 @@ class StudentFactory(UserProfileFactory):
 
     s_id = factory.Sequence(lambda n: '2012211{0:0>3}'.format(n))
     s_class = factory.SubFactory(ClassFactory)
+
+
+class StudentContactInfoFactory(ContactInfoFactory):
+    class Meta:
+        model = StudentContactInfo
+
+    student = factory.SubFactory(StudentFactory)
 
 
 class TakesFactory(factory.django.DjangoModelFactory):
@@ -135,7 +170,7 @@ class CourseAssignmentFactory(factory.django.DjangoModelFactory):
     title = factory.LazyAttributeSequence(
         lambda o, n: '{0}#{1}'.format(o.course.title, n)
     )
-    grade_ratio = Decimal(0.1)
+    grade_ratio = Decimal('0.{0:0>2}'.format(random.randint(10, 29)))
 
 
 class GroupFactory(factory.django.DjangoModelFactory):
@@ -144,7 +179,6 @@ class GroupFactory(factory.django.DjangoModelFactory):
 
     name = factory.Faker('word')
     course = factory.SubFactory(CourseFactory)
-    leader = factory.SubFactory(StudentFactory)
 
     @factory.post_generation
     def members(self, create, extracted, **kwargs):
