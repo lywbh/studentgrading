@@ -29,11 +29,11 @@ DJANGO_APPS = (
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    # Useful template tags:
-    # 'django.contrib.humanize',
-
     # Admin
     'django.contrib.admin',
+
+    # guardian
+    'guardian',
 )
 THIRD_PARTY_APPS = (
     # 'crispy_forms',  # Form layouts
@@ -163,7 +163,10 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # ------------------------------------------------------------------------------
 AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',
+    'guardian.backends.ObjectPermissionBackend',
 )
+
+ANONYMOUS_USER_ID = -1
 
 # Custom user app defaults
 # Select the correct user model

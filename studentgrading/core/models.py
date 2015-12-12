@@ -390,7 +390,7 @@ class CourseAssignment(models.Model):
 
     def __str__(self):
         return '{course}-#{no}-{title}'.format(
-            no=self.no_in_course,
+            no=self.get_no_in_course(),
             title=self.title,
             course=self.course,
         )
@@ -431,6 +431,7 @@ class CourseAssignment(models.Model):
                 ranking += 1
                 qs_list.remove(oldest)
         return ranking
+    get_no_in_course.short_description = 'no'
 
 
 class Teaches(models.Model):
@@ -464,7 +465,7 @@ class Takes(models.Model):
 
     def validate_grade(self):
         """Check grade is in [0, 100]"""
-        if not (0 <= self.grade <= 100):
+        if self.grade and not (0 <= self.grade <= 100):
             raise ValidationError({'grade': 'Grade should be in [0, 100]'})
 
     def clean(self):
