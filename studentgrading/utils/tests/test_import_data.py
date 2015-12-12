@@ -8,7 +8,8 @@ from studentgrading.core.models import Student, Class, Takes
 class MethodTests(TestCase):
 
     def test_import_student(self):
-        xlpath = '/home/kefanchen/Documents/software_eginerring/stu.xls'
+        import environ
+        xlpath = str((environ.Path(__file__) - 1).path('stu.xls'))
         self.assertEqual(Student.objects.count(), 0)
         Class.objects.create(class_id='301')
         import_student(xlpath)
@@ -16,7 +17,8 @@ class MethodTests(TestCase):
         self.assertEqual(Student.objects.count(), 10)
 
     def import_student_takes(self):
-        xlpath = '/home/kefanchen/Documents/software_eginerring/stu.xls'
+        import environ
+        xlpath = str((environ.Path(__file__) - 1).path('stu.xls'))
         self.assertEqual(Takes.objects.count(), 0)
         Class.objects.create(class_id='301')
         import_student(xlpath)
