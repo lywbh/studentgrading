@@ -328,7 +328,7 @@ class Group(models.Model):
     members = models.ManyToManyField(Student, related_name='member_of')
 
     def __str__(self):
-        """Return class full name: YEAR-SEMESTER-NUM[-NAME]"""
+        """Return group full name: YEAR-SEMESTER-NUM[-NAME]"""
         return (
             '{year}-{semester}-{number}'.format(
                 year=self.course.year,
