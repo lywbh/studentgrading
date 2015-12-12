@@ -31,9 +31,6 @@ DJANGO_APPS = (
 
     # Admin
     'django.contrib.admin',
-
-    # guardian
-    'guardian',
 )
 THIRD_PARTY_APPS = (
     # 'crispy_forms',  # Form layouts
@@ -64,32 +61,11 @@ MIDDLEWARE_CLASSES = (
 # ------------------------------------------------------------------------------
 DEBUG = env.bool("DJANGO_DEBUG", False)
 
-# FIXTURE CONFIGURATION
-# ------------------------------------------------------------------------------
-'''
-FIXTURE_DIRS = (
-    str(APPS_DIR.path('fixtures')),
-)
-'''
-
-# EMAIL CONFIGURATION
-# ------------------------------------------------------------------------------
-# EMAIL_BACKEND = env('DJANGO_EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
-
-# MANAGER CONFIGURATION
-# ------------------------------------------------------------------------------
-'''
-ADMINS = (
-    ("""Yifan Y Liao""", 'szlyyfgm@gmail.com'),
-)
-'''
-
-# MANAGERS = ADMINS
 
 # DATABASE CONFIGURATION
 # ------------------------------------------------------------------------------
-# environ does not support oracle db
 def get_db_setting_str(env_var):
+    """Add oracle backend support"""
     if env(env_var).split(':')[0] == 'oracle':
         setting = env.db(env_var, engine='django.db.backends.oracle')
         setting['PORT'] = str(setting['PORT'])
@@ -163,7 +139,6 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # ------------------------------------------------------------------------------
 AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',
-    'guardian.backends.ObjectPermissionBackend',
 )
 
 ANONYMOUS_USER_ID = -1
