@@ -18,17 +18,8 @@ TEMPLATES_DEBUG = DEBUG
 # Note: This key only used for development and testing.
 SECRET_KEY = env("SECRET_KEY")
 
-# Mail settings
-# ------------------------------------------------------------------------------
-#...
-
-# CACHING
-# ------------------------------------------------------------------------------
-
 # django-debug-toolbar
 # ------------------------------------------------------------------------------
 MIDDLEWARE_CLASSES += ('debug_toolbar.middleware.DebugToolbarMiddleware',)
 INSTALLED_APPS += ('debug_toolbar', )
 
-# TESTING
-# ------------------------------------------------------------------------------

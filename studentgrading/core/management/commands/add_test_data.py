@@ -4,9 +4,10 @@ from decimal import Decimal
 from django.core.management.base import BaseCommand
 
 from studentgrading.users.models import User
+from studentgrading.core.tests import factories
 from studentgrading.core.models import (
     ContactInfoType, Class, Course, Instructor, Teaches,
-    Student, Takes, CourseAssignment,
+    Student, Takes, CourseAssignment, Group,
 )
 
 
@@ -260,4 +261,26 @@ class Command(BaseCommand):
             grade_ratio=Decimal(0.1),
         )
         michael_teaches_fda.assignments.add(assignmnt_fda_1)
+
+        # Create groups
+        grp_sep_1 = Group.objects.create(
+            name='Hello_world',
+            course=course_sep,
+            leader=stu_yifan,
+        )
+        grp_sep_2 = Group.objects.create(
+            name='Goodbye_world',
+            course=course_sep,
+            leader=stu_norris,
+        )
+        grp_sep_3 = Group.objects.create(
+            name='Smart',
+            course=course_sep,
+            leader=stu_jojo,
+        )
+        grp_sep_4 = Group.objects.create(
+            name='Candy',
+            course=course_sep,
+            leader=stu_gord,
+        )
 
