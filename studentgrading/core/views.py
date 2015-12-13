@@ -170,6 +170,7 @@ def delCourse(request):
 @csrf_exempt
 def stuXls(request):        
     if request.method == 'POST':
+        # TODO: delete after test
         role = get_role_of(request.user)
         if isinstance(role, Instructor):
             return HttpResponseRedirect(reverse('core:teacher'))
