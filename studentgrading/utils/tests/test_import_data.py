@@ -1,30 +1,30 @@
 # -*- coding: utf-8 -*-
 
-from test_plus.test import TestCase
-from ..import_data import import_student, import_student_takes
-from studentgrading.core.models import Student, Class, Takes
+# from test_plus.test import TestCase
+# from ..import_data import import_student, import_student_takes
+# from studentgrading.core.models import Student, Class, Takes
 
 
-class MethodTests(TestCase):
+# class MethodTests(TestCase):
 
-    def test_import_student(self):
-        xlpath = '/home/kefanchen/Documents/software_eginerring/stu.xls'
-        self.assertEqual(Student.objects.count(), 0)
-        Class.objects.create(class_id='301')
-        import_student(xlpath)
+#     def test_import_student(self):
+#         xlpath = '/home/kefanchen/Documents/software_eginerring/stu.xls'
+#         self.assertEqual(Student.objects.count(), 0)
+#         Class.objects.create(class_id='301')
+#         import_student(xlpath)
 
-        self.assertEqual(Student.objects.count(), 10)
+#         self.assertEqual(Student.objects.count(), 10)
 
-    def import_student_takes(self):
-        xlpath = '/home/kefanchen/Documents/software_eginerring/stu.xls'
-        self.assertEqual(Takes.objects.count(), 0)
-        Class.objects.create(class_id='301')
-        import_student(xlpath)
-        cours = Course.objects.create(
-            title='Software Engineering Project',
-            year=2015,
-            semester='AUT',
-        )
-        import_student_takes(xlpath, cours.pk)
+#     def import_student_takes(self):
+#         xlpath = '/home/kefanchen/Documents/software_eginerring/stu.xls'
+#         self.assertEqual(Takes.objects.count(), 0)
+#         Class.objects.create(class_id='301')
+#         import_student(xlpath)
+#         cours = Course.objects.create(
+#             title='Software Engineering Project',
+#             year=2015,
+#             semester='AUT',
+#         )
+#         import_student_takes(xlpath, cours.pk)
 
-        self.assertEqual(Takes.objects.count(), 10)
+#         self.assertEqual(Takes.objects.count(), 10)
