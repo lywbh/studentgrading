@@ -197,13 +197,13 @@ class Course(models.Model):
         return min(set(self.NUMBERS_LIST) - set(self.get_used_group_numbers()))
 
     def get_all_students(self):
-            return self.student_set.all()
+        return self.student_set.all()
 
     def get_all_groups(self):
-            return self.group_set.all()
+        return self.group_set.all()
 
     def get_all_assignments(self):
-            return self.assignments.all()
+        return self.assignments.all()
 
     def add_group(self, members=(), *args, **kwargs):
         group = self.group_set.create(*args, **kwargs)
@@ -248,6 +248,12 @@ class Student(UserProfile):
 
     def get_all_courses(self):
         return self.courses.all()
+        
+    def get_course(self, pk):
+        try:
+            return self.courses.get(pk=pk)
+        except Course.DoesNotExist:
+            return None
 
     def get_course(self, pk):
         try:
@@ -399,7 +405,7 @@ class CourseAssignment(models.Model):
 
     def __str__(self):
         return '{course}-#{no}-{title}'.format(
-            no=self.get_no_in_course(),
+            no=self.no_in_course,
             title=self.title,
             course=self.course,
         )
@@ -440,7 +446,6 @@ class CourseAssignment(models.Model):
                 ranking += 1
                 qs_list.remove(oldest)
         return ranking
-    get_no_in_course.short_description = 'no'
 
 
 class Teaches(models.Model):
@@ -474,7 +479,7 @@ class Takes(models.Model):
 
     def validate_grade(self):
         """Check grade is in [0, 100]"""
-        if self.grade and not (0 <= self.grade <= 100):
+        if not (0 <= self.grade <= 100):
             raise ValidationError({'grade': 'Grade should be in [0, 100]'})
 
     def clean(self):
