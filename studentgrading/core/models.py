@@ -11,8 +11,10 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.translation import ugettext_lazy as _
 from django.utils import timezone
+from ..utils.import_data import get_student_dataset, handle_uploaded_file, delete_uploaded_file
+from django.shortcuts import get_object_or_404
+from ..users.models import User
 
-import traceback
 
 def validate_all_digits_in_string(string):
     if not string.isdigit():
@@ -26,7 +28,9 @@ class UserProfile(models.Model):
         ('F', 'Female'),
     )
 
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, verbose_name='username')
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        verbose_name='username')
     name = models.CharField(max_length=255)
     sex = models.CharField(max_length=10, choices=SEX_CHOICES, blank=True,)
 
@@ -113,27 +117,27 @@ class Course(models.Model):
             )
 
     def get_students(self):
-            return self.student_set.all()
+        return self.student_set.all()
 
     def get_groups(self):
-            return self.group_set.all()
+        return self.group_set.all()
 
     def get_assignments(self):
-            return self.assignments.all()
+        return self.assignments.all()
 
-    def add_group(self,members=(),*args,**kwargs):
-        _group = self.group_set.create(*args,**kwargs)
+    def add_group(self, members=(), *args, **kwargs):
+        _group = self.group_set.create(*args, **kwargs)
         _group.members.add(*members)
 
-    def delete_group(self,group):
+    def delete_group(self, group):
         group.delete()
 
-    def add_assignment(self,*args,**kwargs):
-        assi = self.assignments.create(*args,**kwargs)
-    
-    def delete_assignment(self,assignement):
-           assignement.delete()
-       
+    def add_assignment(self, *args, **kwargs):
+        assi = self.assignments.create(*args, **kwargs)
+
+    def delete_assignment(self, assignement):
+        assignement.delete()
+
 
 class Student(UserProfile):
     s_id = models.CharField(
@@ -155,7 +159,8 @@ class Student(UserProfile):
         return '{name}-{id}'.format(name=self.name, id=self.s_id)
 
     def get_courses(self):
-            return self.courses.all()
+        return self.courses.all()
+
 
 class StudentContactInfo(ContactInfo):
     student = models.ForeignKey(Student)
@@ -176,19 +181,36 @@ class Instructor(UserProfile):
         through_fields=('instructor', 'course')
     )
 
+    def import_student_takes(f, course_pk):
+
+        xlpath = handle_uploaded_file(f)
+        data = get_student_dataset(xlpath)
+        data.append_col(course_pk, header='course')
+
+        rows = data.dict
+        for row in rows:
+
+            stu = get_object_or_404(Student, s_id=row['s_id'])
+            if not (stu.courses.filter(pk=row['course'])):
+                cours = Course.objects.get(pk=row['course'])
+                Takes.objects.create(student=stu, course=cours)
+
+        delete_uploaded_file(xlpath)
+
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.inst_id)
 
     #@classmethod
     def get_courses(self, inst_pk):
-            return self.courses.all()
+        return self.courses.all()
 
-    def add_course(self,*args,**kwargs):
-        new_course = Course.objects.create(*args,**kwargs)
-        Teaches.objects.create(instructor = self,course = new_course)
+    def add_course(self, *args, **kwargs):
+        new_course = Course.objects.create(*args, **kwargs)
+        Teaches.objects.create(instructor=self, course=new_course)
 
-    def delete_course(self,d_course):
+    def delete_course(self, d_course):
         d_course.delete()
+
 
 class InstructorContactInfo(ContactInfo):
     instructor = models.ForeignKey(Instructor)
@@ -218,7 +240,7 @@ class Group(models.Model):
     number = models.CharField(
         verbose_name=_('group number'),
         max_length=10,
-        #default=number_default,
+        # default=number_default,
         null=True,
     )
     name = models.CharField(
@@ -228,16 +250,24 @@ class Group(models.Model):
         blank=True,
     )
     course = models.ForeignKey(Course)
-    leader = models.ForeignKey(Student, related_name='leader_of',null=True,blank=True)
-    members = models.ManyToManyField(Student, related_name='member_of',null=True,blank=True)
+    leader = models.ForeignKey(
+        Student,
+        related_name='leader_of',
+        null=True,
+        blank=True)
+    members = models.ManyToManyField(
+        Student,
+        related_name='member_of',
+        null=True,
+        blank=True)
 
     # return class full name: YEAR-SEMESTER-NUM[-NAME]
     def __str__(self):
         return ('{year}-{semester}-{number}'.format(
-                    year=self.course.year,
-                    semester=self.course.semester,
-                    number=self.number,
-                ) + ('-{}'.format(self.name) if self.name else '')
+            year=self.course.year,
+            semester=self.course.semester,
+            number=self.number,
+        ) + ('-{}'.format(self.name) if self.name else '')
         )
 
     def clean(self):
@@ -254,7 +284,7 @@ class CourseAssignment(models.Model):
 
     course = models.ForeignKey(Course, related_name='assignments')
     title = models.CharField(max_length=255)
-    description = models.TextField(blank=True,null=True)
+    description = models.TextField(blank=True, null=True)
     deadline_dtm = models.DateTimeField(
         default=timezone.now() + datetime.timedelta(days=7),
         verbose_name='deadline',
@@ -335,3 +365,30 @@ class Takes(models.Model):
             stu=self.student.__str__(),
             course=self.course.__str__(),
         )
+
+
+def import_student(f):
+
+    xlpath = handle_uploaded_file(f)
+
+    data = get_student_dataset(xlpath)
+
+    rows = data.dict
+
+    for row in rows:
+        if not(Student.objects.filter(s_id=row['s_id'])):
+            #s_class = Class.objects.get(class_id=str(row['class_id']))
+            s_class = get_object_or_404(Class, class_id=str(row['class_id']))
+            s_user = User.objects.create_user(
+                username=row['s_id'],
+                password=row['s_id']
+            )
+
+            Student.objects.create(
+                user=s_user,
+                name=row['name'],
+                sex=row['sex'],
+                s_id=row['s_id'],
+                s_class=s_class
+            )
+    delete_uploaded_file(xlpath)

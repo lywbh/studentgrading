@@ -2,6 +2,7 @@
 from test_plus.test import TestCase
 
 from . import factories
+from ..models import import_student,Student,Class
 
 
 class CourseAssignmentMethodTests(TestCase):
@@ -64,7 +65,15 @@ class CourseMethodTests(TestCase):
         self.assertEqual(teaches.assignments.count(), 0)
         self.assertEqual(course.assignments.count(), 0)
 
+# class MethodTests(TestCase):
 
+#     def test_import_student(self):
+#         xlpath = '/home/kefanchen/Documents/software_eginerring/stu.xls'
+#         self.assertEqual(Student.objects.count(), 0)
+#         Class.objects.create(class_id='301')
+#         import_student(xlpath)
+
+#         self.assertEqual(Student.objects.count(), 10)
 
 
 
@@ -87,3 +96,19 @@ class InstructorMethodTests(TestCase):
         instructor.add_course(title="DS")
 
         self.assertEqual(instructor.courses.count(),1)
+
+    # def import_student_takes(self):
+    #     instructor = factories.InstructorFactory()
+
+    #     xlpath = '/home/kefanchen/Documents/software_eginerring/stu.xls'
+    #     self.assertEqual(Takes.objects.count(), 0)
+    #     Class.objects.create(class_id='301')
+    #     import_student(xlpath)
+    #     cours = Course.objects.create(
+    #         title='Software Engineering Project',
+    #         year=2015,
+    #         semester='AUT',
+    #     )
+    #     instructor.import_student_takes(xlpath, cours.pk)
+
+    #     self.assertEqual(Takes.objects.count(), 10)
