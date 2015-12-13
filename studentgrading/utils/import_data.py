@@ -1,14 +1,8 @@
-from ..core.models import *
 import tablib
-from studentgrading.users.models import User
+import os
+import time
 
-
-def get_class_pk(row):
-    return Class.objects.get(class_id=str(row[1])).pk
-
-
-def get_student_pk(row):
-    return Student.objects.get(s_id=str(row[0])).pk
+from django.conf import settings
 
 
 def get_student_dataset(xlpath):
@@ -20,61 +14,23 @@ def get_student_dataset(xlpath):
     return data
 
 
-def import_student_takes(xlpath, course_pk):
-    """
-    Import students taking the course, using the xls file
+def handle_uploaded_file(f):
 
-    The xls file's header must be in the format:
-        s_id class_id name sex
-    If any student in this file do not exist in the db, it will
-    raise Student.DoesNotExist exception
-    :param xlpath: xls file, absolute path string
-    :param course_pk: pk of the course to import in
-    """
-    data = get_student_dataset(xlpath)
-    data.append_col(get_student_pk, header='student')
-    data.append_col(course_pk, header='course')
-    del data['s_id']
-    del data['class_id']
-    del data['name']
-    del data['sex']
+    try:
+        path = settings.MEDIA_ROOT
+        if not os.path.exists(path):
+            os.makedirs(path)
 
-    rows = data.dict
+        file_name = path + '/' + f.name + time.strftime('%Y%m%d%H%M%S')
+        destination = open(file_name, 'wb+')
+        for chunk in f.chunks():
+            destination.write(chunk)
+        destination.close()
+    except Exception as e:
+        raise e
 
-    for row in rows:
-        stu = Student.objects.get(pk=row['student'])
-        cours = Course.objects.get(pk=row['course'])
-        Takes.objects.create(student=stu, course=cours)
+    return file_name
 
 
-def import_student(xlpath):
-    """
-    Import students, using the xls file
-
-    The xls file's header must be in the format:
-        s_id class_id name sex
-    If any student does not exist, it will create user for it.
-    :param xlpath: the xls file containing students info, absolute path string
-    :return:
-    """
-    data = get_student_dataset(xlpath)
-    data.insert_col(1, get_class_pk, header='s_class')
-    del data['class_id']
-
-    rows = data.dict
-
-    for row in rows:
-        s_class = Class.objects.get(pk=str(row['s_class']))
-        # init username password
-        s_user = User.objects.create_user(
-            username=row['s_id'],
-            password=row['s_id']
-        )
-
-        Student.objects.create(
-            user=s_user,
-            name=row['name'],
-            sex=row['sex'],
-            s_id=row['s_id'],
-            s_class=s_class
-        )
+def delete_uploaded_file(file_name):
+    os.remove(file_name)

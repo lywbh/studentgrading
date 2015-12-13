@@ -8,7 +8,8 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.translation import ugettext_lazy as _
 from django.utils import timezone
-
+from ..utils.import_data import get_student_dataset, handle_uploaded_file, delete_uploaded_file
+from django.shortcuts import get_object_or_404
 from ..users.models import User
 
 
@@ -255,6 +256,15 @@ class Student(UserProfile):
         except Course.DoesNotExist:
             return None
 
+    def get_course(self, pk):
+        try:
+            return self.courses.get(pk=pk)
+        except Course.DoesNotExist:
+            return None
+
+    def get_group(self, course_pk):
+        pass
+
 
 class StudentContactInfo(ContactInfo):
     student = models.ForeignKey(Student, related_name='contact_infos')
@@ -274,6 +284,22 @@ class Instructor(UserProfile):
         through='Teaches',
         through_fields=('instructor', 'course')
     )
+
+    def import_student_takes(f, course_pk):
+
+        xlpath = handle_uploaded_file(f)
+        data = get_student_dataset(xlpath)
+        data.append_col(course_pk, header='course')
+
+        rows = data.dict
+        for row in rows:
+
+            stu = get_object_or_404(Student, s_id=row['s_id'])
+            if not (stu.courses.filter(pk=row['course'])):
+                cours = Course.objects.get(pk=row['course'])
+                Takes.objects.create(student=stu, course=cours)
+
+        delete_uploaded_file(xlpath)
 
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.inst_id)
@@ -334,7 +360,7 @@ class Group(models.Model):
     members = models.ManyToManyField(Student, related_name='member_of')
 
     def __str__(self):
-        """Return class full name: YEAR-SEMESTER-NUM[-NAME]"""
+        """Return group full name: YEAR-SEMESTER-NUM[-NAME]"""
         return (
             '{year}-{semester}-{number}'.format(
                 year=self.course.year,
@@ -513,3 +539,28 @@ def get_role_of(user):
         return None
     return getattr(user, instance_related_name)
 
+
+def import_student(f):
+
+    xlpath = handle_uploaded_file(f)
+
+    data = get_student_dataset(xlpath)
+
+    rows = data.dict
+
+    for row in rows:
+        if not(Student.objects.filter(s_id=row['s_id'])):
+            s_class = get_object_or_404(Class, class_id=str(row['class_id']))
+            s_user = User.objects.create_user(
+                username=row['s_id'],
+                password=row['s_id']
+            )
+
+            Student.objects.create(
+                user=s_user,
+                name=row['name'],
+                sex=row['sex'],
+                s_id=row['s_id'],
+                s_class=s_class
+            )
+    delete_uploaded_file(xlpath)

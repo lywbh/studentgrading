@@ -7,6 +7,9 @@ from . import factories
 from studentgrading.core.models import (
     get_role_of, ContactInfoType,
 )
+from ..models import (
+    Course, Student,
+)
 
 
 class UserTests(TestCase):
@@ -106,6 +109,17 @@ class StudentMethodTests(TestCase):
             factories.StudentFactory(s_id='')
         self.assertTrue(cm.exception.message_dict.get('s_id'))
 
+    def test_get_course(self):
+        stu1 = factories.StudentFactory()
+        cs1 = factories.CourseFactory()
+        cs2 = factories.CourseFactory()
+
+        factories.TakesFactory(student=stu1, course=cs1)
+        factories.TakesFactory(student=stu1, course=cs2)
+
+        self.assertEqual(stu1.get_course(cs1.pk), cs1)
+        self.assertEqual(stu1.get_course(cs1.pk + 5), None)
+
 
 class CourseAssignmentMethodTests(TestCase):
 
@@ -186,6 +200,26 @@ class ModelTests(TestCase):
         from studentgrading.users.models import User
         User.objects.create_superuser(username='admin', password='sep2015')
         user2 = authenticate(username='admin', password='sep2015')
+
+    def test_import_student(self):
+        import environ
+
+        factories.ClassFactory(class_id='301')
+        with open(str((environ.Path(__file__) - 1).path('stu.xls')), 'rb') as f:
+            response = self.post(
+                reverse('core:stuxls'),
+                data={'stuxls': f},
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Student.objects.count(), 10)
+
+        with open(str((environ.Path(__file__) - 1).path('stu.xls')), 'rb') as f:
+            response = self.post(
+                reverse('core:stuxls'),
+                data={'stuxls': f},
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Student.objects.count(), 10)
 
 
 class CourseMethodTests(TestCase):
