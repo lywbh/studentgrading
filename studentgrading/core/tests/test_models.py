@@ -2,10 +2,12 @@
 from test_plus.test import TestCase
 from django.core.exceptions import ValidationError
 from django.core.urlresolvers import reverse
+from django.test.client import RequestFactory
 
+import environ
 from . import factories
 from studentgrading.core.models import (
-    get_role_of, ContactInfoType,
+    get_role_of, ContactInfoType, import_student,
 )
 from ..models import (
     Course, Student,
@@ -120,6 +122,26 @@ class StudentMethodTests(TestCase):
         self.assertEqual(stu1.get_course(cs1.pk), cs1)
         self.assertEqual(stu1.get_course(cs1.pk + 5), None)
 
+    def test_get_group(self):
+        stu1 = factories.StudentFactory()
+        cs1 = factories.CourseFactory()
+        factories.TakesFactory(student=stu1, course=cs1)
+        grp1 = factories.GroupFactory(course=cs1, leader=stu1)
+
+        self.assertEqual(stu1.get_group(cs1.pk), grp1)
+
+        stu2 = factories.StudentFactory()
+        factories.TakesFactory(student=stu2, course=cs1)
+        grp1.members.add(stu2)
+
+        self.assertEqual(stu2.get_group(cs1.pk), grp1)
+
+        with self.assertRaises(ValidationError):
+            self.assertEqual(factories.StudentFactory().get_group(cs1.pk), None)
+
+        with self.assertRaises(ValidationError):
+            stu1.get_group(factories.CourseFactory().pk)
+
 
 class CourseAssignmentMethodTests(TestCase):
 
@@ -202,24 +224,15 @@ class ModelTests(TestCase):
         user2 = authenticate(username='admin', password='sep2015')
 
     def test_import_student(self):
-        import environ
-
         factories.ClassFactory(class_id='301')
+        rf = RequestFactory()
         with open(str((environ.Path(__file__) - 1).path('stu.xls')), 'rb') as f:
-            response = self.post(
-                reverse('core:stuxls'),
-                data={'stuxls': f},
-            )
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(Student.objects.count(), 10)
+            count = import_student(rf.post('anything', {'file': f}).FILES['file'])
+        self.assertEqual(count, 10)
 
         with open(str((environ.Path(__file__) - 1).path('stu.xls')), 'rb') as f:
-            response = self.post(
-                reverse('core:stuxls'),
-                data={'stuxls': f},
-            )
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(Student.objects.count(), 10)
+            count = import_student(rf.post('anything', {'file': f}).FILES['file'])
+        self.assertEqual(count, 0)
 
 
 class CourseMethodTests(TestCase):
@@ -294,6 +307,26 @@ class InstructorMethodTests(TestCase):
         with self.assertRaises(ValidationError) as cm:
             factories.InstructorFactory(inst_id='')
         self.assertTrue(cm.exception.message_dict.get('inst_id'))
+
+    def test_import_student_takes(self):
+        inst1 = factories.InstructorFactory()
+        cs1 = factories.CourseFactory()
+        factories.TeachesFactory(instructor=inst1, course=cs1)
+
+        rf = RequestFactory()
+        factories.ClassFactory(class_id='301')
+        f = open(str((environ.Path(__file__) - 1).path('stu.xls')), 'rb')
+        count = inst1.import_student_takes(rf.post('anything', {'file': f}).FILES['file'], cs1.pk)
+        self.assertEqual(count, 0)
+
+        f.seek(0)
+        import_student(rf.post('anything', {'file': f}).FILES['file'])
+
+        factories.TakesFactory(student=Student.objects.all()[0], course=cs1)
+        factories.TakesFactory(student=Student.objects.all()[1], course=cs1)
+        f.seek(0)
+        count = inst1.import_student_takes(rf.post('anything', {'file': f}).FILES['file'], cs1.pk)
+        self.assertEqual(count, 8)
 
 
 class TakesTests(TestCase):

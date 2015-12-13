@@ -6,8 +6,16 @@ from django.conf import settings
 
 
 def get_student_dataset(xlpath):
+    """
+    Import data from spreadsheet file
+
+    If the file cannot be imported, raise TypeError
+    Cannot import data from multiple sheets.
+    """
     f = open(xlpath, 'rb')
     data = tablib.import_set(f.read())
+    if not data:
+        raise TypeError('Invalid spreadsheet type.')
     data.headers = ['s_id', 'class_id', 'name', 'sex']
 
     f.close()
