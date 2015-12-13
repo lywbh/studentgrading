@@ -73,7 +73,7 @@ function addMember() {
         '</td><td>' + name +
         '</td><td><button type="button" class="btn btn-primary btn-lg listbtn" data-toggle="modal" onclick="delMember(' + id + ', ' + name + ')">删除</button></td></tr>'
     );
-    $('#newgroup #candidatelist').remove('option[value=' + $("#candidatelist option:selected").val() + ']');
+    $('#newgroup #candidatelist').remove('option[value=' + id + ']');
     $('#newgroup table tbody').append(newtr);
 }
 
