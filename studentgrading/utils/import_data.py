@@ -1,6 +1,8 @@
 import tablib
-from django.conf import settings
 import os
+import time
+
+from django.conf import settings
 
 
 def get_student_dataset(xlpath):
@@ -13,14 +15,13 @@ def get_student_dataset(xlpath):
 
 
 def handle_uploaded_file(f):
-    file_name = ""
 
     try:
         path = settings.MEDIA_ROOT
         if not os.path.exists(path):
             os.makedirs(path)
 
-        file_name = path + f.name + time.strftime('%Y%m%d%H%M%S')
+        file_name = path + '/' + f.name + time.strftime('%Y%m%d%H%M%S')
         destination = open(file_name, 'wb+')
         for chunk in f.chunks():
             destination.write(chunk)

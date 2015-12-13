@@ -8,7 +8,7 @@ from studentgrading.core.models import (
     get_role_of, ContactInfoType,
 )
 from ..models import (
-    Course,
+    Course, Student,
 )
 
 
@@ -200,6 +200,26 @@ class ModelTests(TestCase):
         from studentgrading.users.models import User
         User.objects.create_superuser(username='admin', password='sep2015')
         user2 = authenticate(username='admin', password='sep2015')
+
+    def test_import_student(self):
+        import environ
+
+        factories.ClassFactory(class_id='301')
+        with open(str((environ.Path(__file__) - 1).path('stu.xls')), 'rb') as f:
+            response = self.post(
+                reverse('core:stuxls'),
+                data={'stuxls': f},
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Student.objects.count(), 10)
+
+        with open(str((environ.Path(__file__) - 1).path('stu.xls')), 'rb') as f:
+            response = self.post(
+                reverse('core:stuxls'),
+                data={'stuxls': f},
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Student.objects.count(), 10)
 
 
 class CourseMethodTests(TestCase):

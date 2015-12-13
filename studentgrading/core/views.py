@@ -171,6 +171,8 @@ def delCourse(request):
 def stuXls(request):        
     if request.method == 'POST':
         # TODO: delete after test
+        import_student(request.FILES['stuxls'])
+        return HttpResponseRedirect(reverse('core:teacher'))
         role = get_role_of(request.user)
         if isinstance(role, Instructor):
             return HttpResponseRedirect(reverse('core:teacher'))
