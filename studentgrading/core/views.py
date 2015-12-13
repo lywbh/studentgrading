@@ -172,5 +172,6 @@ def stuXls(request):
     if request.method == 'POST':
         role = get_role_of(request.user)
         if isinstance(role, Instructor):
+            
             return HttpResponseRedirect(reverse('core:teacher'))
             

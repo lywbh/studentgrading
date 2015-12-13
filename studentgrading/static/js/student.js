@@ -80,7 +80,11 @@ function addMember() {
 function delMember(id, name) {
     var newoption = $('<option value="' + id + '">' + name + '</option>');
     $('#newgroup #candidatelist').append(newoption);
-    $('#newgroup table tbody').remove("");
+    $('#newgroup table tbody tr').each(function() {
+        if($(this).children().eq(0).html() == id) {
+            $(this).remove();
+        }
+    });
 }
 
 function saveGroup() {
