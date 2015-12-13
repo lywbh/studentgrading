@@ -249,6 +249,15 @@ class Student(UserProfile):
     def get_all_courses(self):
         return self.courses.all()
 
+    def get_course(self, pk):
+        try:
+            return self.courses.get(pk=pk)
+        except Course.DoesNotExist:
+            return None
+
+    def get_group(self, course_pk):
+        pass
+
 
 class StudentContactInfo(ContactInfo):
     student = models.ForeignKey(Student, related_name='contact_infos')

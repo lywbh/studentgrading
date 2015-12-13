@@ -7,6 +7,9 @@ from . import factories
 from studentgrading.core.models import (
     get_role_of, ContactInfoType,
 )
+from ..models import (
+    Course,
+)
 
 
 class UserTests(TestCase):
@@ -105,6 +108,17 @@ class StudentMethodTests(TestCase):
         with self.assertRaises(ValidationError) as cm:
             factories.StudentFactory(s_id='')
         self.assertTrue(cm.exception.message_dict.get('s_id'))
+
+    def test_get_course(self):
+        stu1 = factories.StudentFactory()
+        cs1 = factories.CourseFactory()
+        cs2 = factories.CourseFactory()
+
+        factories.TakesFactory(student=stu1, course=cs1)
+        factories.TakesFactory(student=stu1, course=cs2)
+
+        self.assertEqual(stu1.get_course(cs1.pk), cs1)
+        self.assertEqual(stu1.get_course(cs1.pk + 5), None)
 
 
 class CourseAssignmentMethodTests(TestCase):
