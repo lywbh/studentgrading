@@ -11,7 +11,8 @@ function showAllCourse() {
             '<td>' + data[i]['fields'].title + '</td>' +
             '<td>' + data[i]['fields'].year + data[i]['fields'].semester + '</td>' +
             '<td>' + data[i]['fields'].description + '</td>' +
-            '<td><button type="button" class="btn btn-primary btn-lg listbtn" data-toggle="modal" onclick="showCourseDetails(' + data[i]['pk'] + ')">详情</button></td>'
+            '<td><button type="button" class="btn btn-primary btn-lg listbtn" data-toggle="modal" onclick="showCourseDetails(' + data[i]['pk'] + ')">详情</button>' + 
+            '<form method="post" action="stuxls/" enctype="multipart/form-data"><input type="file" id="stuxls" name="stuxls"><input type="submit" name="submit"></form></td>'
         );
         newtr.append(newtd);
         $('.courselist table tbody').append(newtr);
@@ -31,6 +32,30 @@ function showCourseDetails(id) {
         $('#group_max').val(data.max_group_size);
         $('#coursedetail').modal();
     }
+}
+
+function showAllStudent() {
+    $.ajax({
+       url: 'getallstudent?course_id=' + $('#course_id').val(),
+       success: function(data) {
+           console.log(data);
+           $('#groupdetail table tbody').empty();
+            for(var i = 0, len = data['content'].length; i < len; ++i) {
+                var newtr = $('<tr></tr>');
+                var newtd = $(
+                    '<td>' + data['content'][i].s_id + '</td>' +
+                    '<td>' + data['content'][i].name + '</td>' +
+                    '<td>' + data['content'][i].s_class + '</td>'
+                );
+                newtr.append(newtd);
+                $('#groupdetail table tbody').append(newtr);
+            }
+            $('#groupdetail').modal();
+       },
+       fail: function(data) {
+           console.log(data);
+       }
+    });
 }
 
 function showAllGroup() {
@@ -62,6 +87,25 @@ function showGroupConfig() {
         $('#group_max').html(data.group_max);
         $('#groupconfig').modal();
     }
+}
+
+function saveGroupConfig() {
+    $.ajax({
+       url: 'setgroupconfig/',
+       type: 'POST',
+       data: {
+           course_id: $('#course_id').val(),
+           group_min: $('#group_min').val(),
+           group_max: $('#group_max').val()
+       },
+       success: function(data) {
+           console.log(data);
+           $('#groupconfig').modal('hide');
+       },
+       fail: function(data) {
+           console.log(data);
+       }
+    });
 }
 
 function showGroup(group_id) {

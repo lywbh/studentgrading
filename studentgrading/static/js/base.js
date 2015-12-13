@@ -62,6 +62,22 @@ function getGroup(course_id, group_id) {
     return ret;
 }
 
+function getMyGroup(course_id) {
+    var ret;
+    $.ajax({
+       url: 'getgroup?course_id=' + course_id,
+       async: false,
+       success: function(data) {
+           console.log(data);
+           ret = data;
+       },
+       fail: function(data) {
+           console.log(data);
+       }
+    });
+    return ret;
+}
+
 function newCourse(data) {
     var ret;
     $.ajax({

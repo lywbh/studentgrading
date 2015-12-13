@@ -10,6 +10,7 @@ from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from django.core.urlresolvers import reverse
 from django.views.generic import View, RedirectView
+from ..core.models import *
 
 
 class UserLoginView(View):
@@ -19,7 +20,11 @@ class UserLoginView(View):
         user = authenticate(username = username, password = password)
         if user is not None:
             login(request, user)
-            return HttpResponseRedirect(reverse('core:teacher'))
+            role = get_role_of(user)
+            if isinstance(role, Student):
+                return HttpResponseRedirect(reverse('core:student'))
+            elif isinstance(role, Instructor):
+                return HttpResponseRedirect(reverse('core:teacher'))
             
     def get(self, requset, *args, **kwargs):
         return render(requset, 'users/login.html', {'form': AuthenticationForm()})

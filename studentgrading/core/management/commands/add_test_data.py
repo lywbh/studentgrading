@@ -238,29 +238,29 @@ class Command(BaseCommand):
             title='Chapter 1 assignment',
             grade_ratio=Decimal(0.1),
         )
-        course_dbc.assignments.add(assignmnt_dbc_1)
-        course_dbc.assignments.add(assignmnt_dbc_1)
+        jennifer_teaches_dbc.assignments.add(assignmnt_dbc_1)
+        michael_teaches_dbc.assignments.add(assignmnt_dbc_1)
 
         assignmnt_ide_1 = CourseAssignment.objects.create(
             course=course_ide,
             title='Chapter 1 assignment',
             grade_ratio=Decimal(0.1),
         )
-        course_ide.assignments.add(assignmnt_ide_1)
+        paul_teaches_ide.assignments.add(assignmnt_ide_1)
 
         assignmnt_sep_1 = CourseAssignment.objects.create(
             course=course_sep,
             title='Chapter 1 assignment',
             grade_ratio=Decimal(0.1),
         )
-        course_sep.assignments.add(assignmnt_sep_1)
+        dxiao_teaches_sep.assignments.add(assignmnt_sep_1)
 
         assignmnt_fda_1 = CourseAssignment.objects.create(
             course=course_fda,
             title='Chapter 1 assignment',
             grade_ratio=Decimal(0.1),
         )
-        course_fda.assignments.add(assignmnt_fda_1)
+        michael_teaches_fda.assignments.add(assignmnt_fda_1)
 
         # Create groups
         grp_sep_1 = Group.objects.create(
