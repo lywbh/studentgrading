@@ -256,14 +256,21 @@ class Student(UserProfile):
         except Course.DoesNotExist:
             return None
 
-    def get_course(self, pk):
-        try:
-            return self.courses.get(pk=pk)
-        except Course.DoesNotExist:
-            return None
-
     def get_group(self, course_pk):
-        pass
+        """
+        Get a group this student belongs to
+
+        Raise ValidationError if student does not take the course.
+        """
+        course = self.get_course(course_pk)
+        if not course:
+            raise ValidationError('This student does not take the course.')
+        qs = self.member_of.filter(course=course)
+        if not qs.exists():
+            qs = self.leader_of.filter(course=course)
+            if not qs.exists():
+                return None
+        return qs[0]    # only return the first group, there should be only one
 
 
 class StudentContactInfo(ContactInfo):
@@ -284,22 +291,6 @@ class Instructor(UserProfile):
         through='Teaches',
         through_fields=('instructor', 'course')
     )
-
-    def import_student_takes(f, course_pk):
-
-        xlpath = handle_uploaded_file(f)
-        data = get_student_dataset(xlpath)
-        data.append_col(course_pk, header='course')
-
-        rows = data.dict
-        for row in rows:
-
-            stu = get_object_or_404(Student, s_id=row['s_id'])
-            if not (stu.courses.filter(pk=row['course'])):
-                cours = Course.objects.get(pk=row['course'])
-                Takes.objects.create(student=stu, course=cours)
-
-        delete_uploaded_file(xlpath)
 
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.inst_id)
@@ -335,6 +326,40 @@ class Instructor(UserProfile):
             pass
         else:
             course.delete()
+
+    def import_student_takes(self, f, course_pk):
+        """
+        Import students taking the course from xls file f
+
+        Skip students who do not exist.
+        Skip students who already take this course
+        If file is of invalid type, raise ValidationError
+        :param f: a xls file, of request.FILES['file'] type
+        :param course_pk: the course the students take
+        :return: count of successful import
+        """
+        xlpath = handle_uploaded_file(f)
+        try:
+            data = get_student_dataset(xlpath)
+        except TypeError:
+            raise ValidationError('Invalid file type.')
+        course = self.get_course(course_pk)
+        if not course:
+            return 0
+
+        rows = data.dict
+        count = 0
+        for row in rows:
+            try:
+                stu = Student.objects.get(s_id=row['s_id'])
+            except:
+                continue
+            if not (stu.courses.filter(pk=course_pk).exists()):
+                Takes.objects.create(student=stu, course=course)
+                count += 1
+
+        delete_uploaded_file(xlpath)
+        return count
 
 
 class InstructorContactInfo(ContactInfo):
@@ -496,7 +521,7 @@ class Takes(models.Model):
 
     def validate_grade(self):
         """Check grade is in [0, 100]"""
-        if not (0 <= self.grade <= 100):
+        if self.grade and not (0 <= self.grade <= 100):
             raise ValidationError({'grade': 'Grade should be in [0, 100]'})
 
     def clean(self):
@@ -541,13 +566,23 @@ def get_role_of(user):
 
 
 def import_student(f):
+    """
+    Import students, for those who do not exist, create
+    account for them
 
+    Skip those who already exist
+    If the file is of invalid type, raise ValidatioError
+    :param f: a xls file, of request.FILES['file'] type
+    :return: count of successful import
+    """
     xlpath = handle_uploaded_file(f)
-
-    data = get_student_dataset(xlpath)
-
+    try:
+        data = get_student_dataset(xlpath)
+    except TypeError:
+        raise ValidationError('Invalid file type.')
     rows = data.dict
 
+    count = 0
     for row in rows:
         if not(Student.objects.filter(s_id=row['s_id'])):
             s_class = get_object_or_404(Class, class_id=str(row['class_id']))
@@ -563,4 +598,8 @@ def import_student(f):
                 s_id=row['s_id'],
                 s_class=s_class
             )
+            count += 1
+
     delete_uploaded_file(xlpath)
+
+    return count

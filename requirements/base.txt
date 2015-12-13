@@ -14,6 +14,9 @@ django-environ==0.4.0
 
 # Models
 # django-model-utils==2.3.1
+# You should manually install tablib from GitHub,
+# cuz 0.10.0 does not support Python 3.4
+tablib==0.10.0
 
 # Images
 # Pillow==3.0.0
