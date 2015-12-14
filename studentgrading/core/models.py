@@ -352,7 +352,7 @@ class Instructor(UserProfile):
         for row in rows:
             try:
                 stu = Student.objects.get(s_id=row['s_id'])
-            except:
+            except Student.DoesNotExist:
                 continue
             if not (stu.courses.filter(pk=course_pk).exists()):
                 Takes.objects.create(student=stu, course=course)
@@ -572,6 +572,7 @@ def import_student(f):
 
     Skip those who already exist
     If the file is of invalid type, raise ValidatioError
+    Skip if class does not exist
     :param f: a xls file, of request.FILES['file'] type
     :return: count of successful import
     """
@@ -585,7 +586,10 @@ def import_student(f):
     count = 0
     for row in rows:
         if not(Student.objects.filter(s_id=row['s_id'])):
-            s_class = get_object_or_404(Class, class_id=str(row['class_id']))
+            try:
+                s_class = Class.objects.get(class_id=row['class_id'])
+            except Class.DoesNotExist:
+                continue
             s_user = User.objects.create_user(
                 username=row['s_id'],
                 password=row['s_id']
