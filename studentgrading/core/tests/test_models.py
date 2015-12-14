@@ -270,8 +270,8 @@ class CourseMethodTests(TestCase):
         factories.GroupFactory(course=cs1, members=(stu1, stu2))
 
         self.assertQuerysetEqual(
-            cs1.get_students_not_in_group(),
-            [stu3]
+            cs1.get_students_not_in_any_group(),
+            [repr(stu3)]
         )
 
 
@@ -338,6 +338,7 @@ class InstructorMethodTests(TestCase):
         f.seek(0)
         count = inst1.import_student_takes(rf.post('anything', {'file': f}).FILES['file'], cs1.pk)
         self.assertEqual(count, 8)
+        self.assertEqual(cs1.takes.count(), 10)
 
 
 class TakesTests(TestCase):

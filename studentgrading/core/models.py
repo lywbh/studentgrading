@@ -220,9 +220,9 @@ class Course(models.Model):
         except Group.DoesNotExist:
             return None
 
-    def get_students_not_in_group(self):
+    def get_students_not_in_any_group(self):
         q_stu_takes = Q(takes__course=self)
-        q_stu_in_group = Q(group__course=self)
+        q_stu_in_group = Q(leader_of__course=self) | Q(member_of__course=self)
         return Student.objects.filter(
             ~(q_stu_takes & q_stu_in_group) & q_stu_takes
         )
@@ -519,8 +519,8 @@ class Teaches(models.Model):
 
 
 class Takes(models.Model):
-    student = models.ForeignKey(Student)
-    course = models.ForeignKey(Course)
+    student = models.ForeignKey(Student, related_name='takes')
+    course = models.ForeignKey(Course, related_name='takes')
     grade = models.DecimalField(max_digits=5, decimal_places=2,
                                 null=True, blank=True, )
 
