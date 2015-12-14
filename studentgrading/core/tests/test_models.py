@@ -103,6 +103,13 @@ class CourseTests(TestCase):
         except Exception as e:
             self.fail(str(e))
 
+    def test_get_students_not_in_group(self):
+        cs1 = factories.CourseFactory()
+        stu1 = factories.StudentTakesCourseFactory(courses__course=cs1)
+        stu2 = factories.StudentTakesCourseFactory(courses__course=cs1)
+        self.assertTrue(stu1.courses.filter(pk=cs1.pk).exists())
+        self.assertTrue(stu2.courses.filter(pk=cs1.pk).exists())
+
 
 class StudentMethodTests(TestCase):
 
