@@ -252,13 +252,13 @@ class CourseMethodTests(TestCase):
         )
         self.assertEqual(course.group_set.count(), 1)
 
-    def test_add_assignemnt(self):
+    def test_add_assignment(self):
         course = factories.CourseFactory()
-        self.assertEqual(course.assignments.count(),0)
+        self.assertEqual(course.assignments.count(), 0)
 
         course.add_assignment(title="ass1", grade_ratio=0.1)
 
-        self.assertEqual(course.assignments.count(),1)
+        self.assertEqual(course.assignments.count(), 1)
 
     def test_get_students_not_in_group(self):
         cs1 = factories.CourseFactory()
