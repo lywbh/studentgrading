@@ -8,8 +8,9 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.translation import ugettext_lazy as _
 from django.utils import timezone
+from django.db.models import Q
+
 from ..utils.import_data import get_student_dataset, handle_uploaded_file, delete_uploaded_file
-from django.shortcuts import get_object_or_404
 from ..users.models import User
 
 
@@ -219,6 +220,13 @@ class Course(models.Model):
         except Group.DoesNotExist:
             return None
 
+    def get_students_not_in_any_group(self):
+        q_stu_takes = Q(takes__course=self)
+        q_stu_in_group = Q(leader_of__course=self) | Q(member_of__course=self)
+        return Student.objects.filter(
+            ~(q_stu_takes & q_stu_in_group) & q_stu_takes
+        )
+
 
 class Student(UserProfile):
     s_id = models.CharField(
@@ -351,7 +359,7 @@ class Instructor(UserProfile):
         count = 0
         for row in rows:
             try:
-                stu = Student.objects.get(s_id=row['s_id'])
+                stu = Student.objects.get(s_id=str(int(row['s_id'])))
             except Student.DoesNotExist:
                 continue
             if not (stu.courses.filter(pk=course_pk).exists()):
@@ -511,8 +519,8 @@ class Teaches(models.Model):
 
 
 class Takes(models.Model):
-    student = models.ForeignKey(Student)
-    course = models.ForeignKey(Course)
+    student = models.ForeignKey(Student, related_name='takes')
+    course = models.ForeignKey(Course, related_name='takes')
     grade = models.DecimalField(max_digits=5, decimal_places=2,
                                 null=True, blank=True, )
 
@@ -571,7 +579,7 @@ def import_student(f):
     account for them
 
     Skip those who already exist
-    If the file is of invalid type, raise ValidatioError
+    If the file is of invalid type, raise ValidationError
     Skip if class does not exist
     :param f: a xls file, of request.FILES['file'] type
     :return: count of successful import
@@ -585,7 +593,7 @@ def import_student(f):
 
     count = 0
     for row in rows:
-        if not(Student.objects.filter(s_id=row['s_id'])):
+        if not(Student.objects.filter(s_id=str(int(row['s_id'])))):
             try:
                 s_class = Class.objects.get(class_id=row['class_id'])
             except Class.DoesNotExist:

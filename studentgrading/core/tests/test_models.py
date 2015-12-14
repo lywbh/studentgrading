@@ -81,29 +81,6 @@ class ClassTests(TestCase):
             factories.ClassFactory(class_id='')
 
 
-class CourseTests(TestCase):
-
-    def test_save(self):
-        # not empty fields
-        with self.assertRaises(ValidationError) as cm:
-            factories.CourseFactory(title='')
-        self.assertTrue(cm.exception.message_dict.get('title'))
-        with self.assertRaises(ValidationError) as cm:
-            factories.CourseFactory(semester='')
-        self.assertTrue(cm.exception.message_dict.get('semester'))
-
-        # check group size
-        with self.assertRaises(ValidationError) as cm:
-            factories.CourseFactory(min_group_size=2, max_group_size=1)
-        self.assertTrue(cm.exception.message_dict.get('min_group_size'))
-        self.assertTrue(cm.exception.message_dict.get('max_group_size'))
-
-        try:
-            factories.CourseFactory(min_group_size=2, max_group_size=2)
-        except Exception as e:
-            self.fail(str(e))
-
-
 class StudentMethodTests(TestCase):
 
     def test_save(self):
@@ -237,6 +214,26 @@ class ModelTests(TestCase):
 
 class CourseMethodTests(TestCase):
 
+    def test_save(self):
+        # not empty fields
+        with self.assertRaises(ValidationError) as cm:
+            factories.CourseFactory(title='')
+        self.assertTrue(cm.exception.message_dict.get('title'))
+        with self.assertRaises(ValidationError) as cm:
+            factories.CourseFactory(semester='')
+        self.assertTrue(cm.exception.message_dict.get('semester'))
+
+        # check group size
+        with self.assertRaises(ValidationError) as cm:
+            factories.CourseFactory(min_group_size=2, max_group_size=1)
+        self.assertTrue(cm.exception.message_dict.get('min_group_size'))
+        self.assertTrue(cm.exception.message_dict.get('max_group_size'))
+
+        try:
+            factories.CourseFactory(min_group_size=2, max_group_size=2)
+        except Exception as e:
+            self.fail(str(e))
+
     def test_get_next_group_number(self):
         course = factories.CourseFactory()
         self.assertEqual(course.get_next_group_number(), course.NUMBERS_LIST[0])
@@ -262,6 +259,20 @@ class CourseMethodTests(TestCase):
         course.add_assignment(title="ass1", grade_ratio=0.1)
 
         self.assertEqual(course.assignments.count(),1)
+
+    def test_get_students_not_in_group(self):
+        cs1 = factories.CourseFactory()
+
+        stu1 = factories.StudentTakesCourseFactory(courses__course=cs1)
+        stu2 = factories.StudentTakesCourseFactory(courses__course=cs1)
+        stu3 = factories.StudentTakesCourseFactory(courses__course=cs1)
+
+        factories.GroupFactory(course=cs1, members=(stu1, stu2))
+
+        self.assertQuerysetEqual(
+            cs1.get_students_not_in_any_group(),
+            [repr(stu3)]
+        )
 
 
 class CourseAssignmentTests(TestCase):
@@ -327,6 +338,7 @@ class InstructorMethodTests(TestCase):
         f.seek(0)
         count = inst1.import_student_takes(rf.post('anything', {'file': f}).FILES['file'], cs1.pk)
         self.assertEqual(count, 8)
+        self.assertEqual(cs1.takes.count(), 10)
 
 
 class TakesTests(TestCase):

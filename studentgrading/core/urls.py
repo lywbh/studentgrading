@@ -60,4 +60,14 @@ urlpatterns = patterns(
         views.getStuGroup,
         name='getstugroup',
     ),
+    url(
+        r'^student/getcandidatestudent/$',
+        views.getCandidateStudent,
+        name='getcandidatestudent',
+    ),
+    url(
+        r'^student/savegroup/$',
+        views.saveGroup,
+        name='savegroup',
+    ),
 )

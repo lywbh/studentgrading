@@ -119,18 +119,19 @@ def getStuGroup(request):
         role = get_role_of(request.user)
         if 'course_id' in request.GET:
             group = role.get_group(request.GET['course_id'])
-            data = [{
-                's_id': group.leader.s_id,
-                'name': group.leader.name,
-                's_class': group.leader.s_class.class_id,
-            }]
-            for member in group.members.all():
-                data.append({
-                    's_id': member.s_id,
-                    'name': member.name,
-                    's_class': member.s_class.class_id,
-                })
-            return JsonResponse({'content': data})
+            if group != None:
+                data = [{
+                    's_id': group.leader.s_id,
+                    'name': group.leader.name,
+                    's_class': group.leader.s_class.class_id,
+                }]
+                for member in group.members.all():
+                    data.append({
+                        's_id': member.s_id,
+                        'name': member.name,
+                        's_class': member.s_class.class_id,
+                    })
+                return JsonResponse({'content': data})
         else:
             return HttpResponse('Error')
 
@@ -179,7 +180,41 @@ def delCourse(request):
         else:
             return HttpResponse('fail')
 
+def getCandidateStudent(request):
+    if request.method == 'GET':
+        role = get_role_of(request.user)
+        if 'course_id' in request.GET:
+            course = role.get_course(request.GET['course_id'])
+            candidatelist = course.get_students_not_in_any_group()
+            data = serializers.serialize('json', candidatelist)
+            return HttpResponse(data, content_type='application/json')
+        else:
+            return HttpResponse('fail')
 
+@csrf_exempt
+def saveGroup(request):
+    if request.method == 'POST':
+        role = get_role_of(request.user)
+        if 'course_id' in request.POST and 'group_name' in request.POST:
+            stu_id_list = []
+            if 'idList[]' in request.POST:
+                stu_id_list = request.POST['idList[]']
+            course = role.get_course(request.POST['course_id'])
+            candidatelist = course.get_students_not_in_any_group()
+            candidate_id_list = []
+            for candidate in candidatelist:
+                candidate_id_list.append(candidate.s_id)
+            if not list(set(stu_id_list).intersection(set(candidate_id_list))):
+                member_list = []
+                for stu_id in stu_id_list:
+                    member_list.append(Student.objects.get(s_id = stu_id))
+                course.add_group(members = member_list, name = request.POST['group_name'], leader = role)
+                return HttpResponse('success')
+            else:
+                return HttpResponse('conflict')
+        else:
+            return HttpResponse('fail')
+            
 @csrf_exempt
 def stuXls(request):
     if request.method == 'POST':
