@@ -8,8 +8,9 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.translation import ugettext_lazy as _
 from django.utils import timezone
+from django.db.models import Q
+
 from ..utils.import_data import get_student_dataset, handle_uploaded_file, delete_uploaded_file
-from django.shortcuts import get_object_or_404
 from ..users.models import User
 
 
@@ -218,6 +219,13 @@ class Course(models.Model):
             return self.group_set.get(number=group_id)
         except Group.DoesNotExist:
             return None
+
+    def get_students_not_in_group(self):
+        q_stu_takes = Q(takes__course=self)
+        q_stu_in_group = Q(group__course=self)
+        return Student.objects.filter(
+            ~(q_stu_takes & q_stu_in_group) & q_stu_takes
+        )
 
 
 class Student(UserProfile):
@@ -571,7 +579,7 @@ def import_student(f):
     account for them
 
     Skip those who already exist
-    If the file is of invalid type, raise ValidatioError
+    If the file is of invalid type, raise ValidationError
     Skip if class does not exist
     :param f: a xls file, of request.FILES['file'] type
     :return: count of successful import
