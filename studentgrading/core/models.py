@@ -359,7 +359,7 @@ class Instructor(UserProfile):
         count = 0
         for row in rows:
             try:
-                stu = Student.objects.get(s_id=row['s_id'])
+                stu = Student.objects.get(s_id=str(int(row['s_id'])))
             except Student.DoesNotExist:
                 continue
             if not (stu.courses.filter(pk=course_pk).exists()):
@@ -593,7 +593,7 @@ def import_student(f):
 
     count = 0
     for row in rows:
-        if not(Student.objects.filter(s_id=row['s_id'])):
+        if not(Student.objects.filter(s_id=str(int(row['s_id'])))):
             try:
                 s_class = Class.objects.get(class_id=row['class_id'])
             except Class.DoesNotExist:
