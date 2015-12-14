@@ -9,12 +9,15 @@ from django.core.urlresolvers import reverse
 
 from .models import *
 
+
 def teacher_view(request):
     return render(request, 'core/teacher.html')
 
+
 def student_view(request):
     return render(request, 'core/student.html')
-    
+
+
 def getTeachCourse(request):
     if request.method == 'GET':
         role = get_role_of(request.user)
@@ -33,7 +36,8 @@ def getTeachCourse(request):
         else:
             courselist = role.get_all_courses()
             data = serializers.serialize('json', courselist)
-            return HttpResponse(data, content_type = 'application/json')
+            return HttpResponse(data, content_type='application/json')
+
 
 def getStuCourse(request):
     if request.method == 'GET':
@@ -51,8 +55,9 @@ def getStuCourse(request):
         else:
             courselist = role.get_all_courses()
             data = serializers.serialize('json', courselist)
-            return HttpResponse(data, content_type = 'application/json')
-            
+            return HttpResponse(data, content_type='application/json')
+
+
 def getAllStudent(request):
     if request.method == 'GET':
         role = get_role_of(request.user)
@@ -67,8 +72,8 @@ def getAllStudent(request):
                     's_class': member.s_class.class_id,
                 })
             return JsonResponse({'content': data})
-            
-            
+
+
 def getGroup(request):
     if request.method == 'GET':
         role = get_role_of(request.user)
@@ -87,7 +92,7 @@ def getGroup(request):
                     's_class': member.s_class.class_id,
                 })
             return JsonResponse({'content': data})
-            
+
         elif 'course_id' in request.GET:
             course = role.get_course(request.GET['course_id'])
             grouplist = course.get_all_groups()
@@ -108,12 +113,12 @@ def getGroup(request):
         else:
             return HttpResponse('Error')
 
+
 def getStuGroup(request):
     if request.method == 'GET':
         role = get_role_of(request.user)
         if 'course_id' in request.GET:
-            course = role.get_course(request.GET['course_id'])
-            group = None
+            group = role.get_group(request.GET['course_id'])
             data = [{
                 's_id': group.leader.s_id,
                 'name': group.leader.name,
@@ -128,7 +133,8 @@ def getStuGroup(request):
             return JsonResponse({'content': data})
         else:
             return HttpResponse('Error')
-            
+
+
 @csrf_exempt
 def setGroupConfig(request):
     if request.method == 'POST':
@@ -142,6 +148,7 @@ def setGroupConfig(request):
         else:
             return HttpResponse('fail')
 
+
 @csrf_exempt
 def newCourse(request):
     if request.method == 'POST':
@@ -151,12 +158,17 @@ def newCourse(request):
             year = request.POST['year']
             semester = request.POST['semester']
             description = request.POST['description']
-            
-            role.add_course(title = title, year = year, semester = semester, description = description)
+
+            role.add_course(
+                title=title,
+                year=year,
+                semester=semester,
+                description=description)
             return HttpResponse('success')
         else:
             return HttpResponse('fail')
-            
+
+
 @csrf_exempt
 def delCourse(request):
     if request.method == 'POST':
@@ -166,15 +178,16 @@ def delCourse(request):
             return HttpResponse('success')
         else:
             return HttpResponse('fail')
-          
+
+
 @csrf_exempt
-def stuXls(request):        
+def stuXls(request):
     if request.method == 'POST':
-        # TODO: delete after test
-        import_student(request.FILES['stuxls'])
-        return HttpResponseRedirect(reverse('core:teacher'))
         role = get_role_of(request.user)
-        if isinstance(role, Instructor):
-            
+        if 'stuxls' in request.FILES:
+            role.import_student_takes(
+                request.FILES['stuxls'],
+                request.GET['course_id'])
             return HttpResponseRedirect(reverse('core:teacher'))
-            
+        else:
+            return HttpResponse('Error')

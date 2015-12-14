@@ -61,8 +61,8 @@ function showNewGroup() {
             var newoption = $('<option value="' + data['content'][i].s_id + '">' + data['content'][i].name + '</option>');
             $('#newgroup #candidatelist').append(newoption);
         }
+        $('#newgroup').modal();
     }
-    $('#newgroup').modal();
 }
 
 function addMember() {
