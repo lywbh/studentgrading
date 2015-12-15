@@ -14,7 +14,7 @@ urlpatterns = patterns(
     url(r'^~redirect/$', views.UserRedirectView.as_view(), name='redirect'),
     url(r'^teacher/', include(patterns(
         '',
-        url(r'^$', views.teacher_view, name='teacher'),
+        url(r'^$', views.InstructorView.as_view(), name='teacher'),
         url(r'^getcourse/$', views.getTeachCourse, name='getteachcourse'),
         url(r'^getallstudent/$', views.getAllStudent, name='getallstudent'),
         url(r'^getgroup/$', views.getGroup, name='getgroup'),
@@ -25,7 +25,7 @@ urlpatterns = patterns(
     ))),
     url(r'^student/$', include(patterns(
         '',
-        url(r'^$', views.student_view, name='student'),
+        url(r'^$', views.StudentView.as_view(), name='student'),
         url(r'^getcourse/$', views.getStuCourse, name='getstucourse'),
         url(r'^getgroup/$', views.getStuGroup, name='getstugroup'),
         url(r'^getcandidatestudent/$',

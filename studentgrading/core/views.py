@@ -5,19 +5,23 @@ from django.http import HttpResponse, JsonResponse, HttpResponseRedirect
 from django.shortcuts import render
 from django.core import serializers
 from django.views.decorators.csrf import csrf_exempt
-from django.views.generic import RedirectView
+from django.views.generic import RedirectView, View
 from django.core.urlresolvers import reverse
 from braces.views import LoginRequiredMixin
 
 from .models import Student, Instructor, get_role_of
 
 
-def teacher_view(request):
-    return render(request, 'core/teacher.html')
+class InstructorView(LoginRequiredMixin, View):
+
+    def get(self, request):
+        return render(request, 'core/teacher.html')
 
 
-def student_view(request):
-    return render(request, 'core/student.html')
+class StudentView(LoginRequiredMixin, View):
+
+    def get(self, request):
+        return render(request, 'core/student.html')
 
 
 class UserRedirectView(LoginRequiredMixin, RedirectView):
