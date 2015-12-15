@@ -43,12 +43,6 @@ class UserProfile(models.Model):
     def __str__(self):
         return self.name
 
-    def validate_not_empty_fields(self):
-        """Make sure certain char or text fields are not empty"""
-        # name field should not be empty
-        if not self.name:
-            raise ValidationError({'name': 'empty name'})
-
     def validate_user_uniqueness(self):
         """One user can only be bound to one role(Student, Instructor, etc"""
         role = get_role_of(self.user)
@@ -59,7 +53,7 @@ class UserProfile(models.Model):
         self.validate_user_uniqueness()
 
     def save(self, *args, **kwargs):
-        UserProfile.validate_not_empty_fields(self)
+        self.full_clean()
         self.validate_user_uniqueness()
         super(UserProfile, self).save(*args, **kwargs)
 
@@ -72,19 +66,20 @@ class ContactInfoType(models.Model):
 
     def validate_type_string_uniqueness(self):
         """Check if type string is unique no matter the case."""
-        if ContactInfoType.objects.filter(
-            type_string__iexact=self.type_string
-        ).exists():
-            raise ValidationError({'type_string': 'Type already exists.'})
+        try:
+            type_string = ContactInfoType.objects.get(
+                type_string__iexact=self.type_string
+            )
+        except ContactInfoType.DoesNotExist:
+            return
+        raise ValidationError({'type_string': 'Type {0} already exists.'.format(type_string)})
 
     def clean(self):
         self.validate_type_string_uniqueness()
 
     def save(self, *args, **kwargs):
+        self.full_clean()
         self.validate_type_string_uniqueness()
-        # Validate type_string is not empty
-        if self.type_string is '':
-            raise ValidationError({'type_string': 'Type is empty.'})
         super(ContactInfoType, self).save(*args, **kwargs)
 
 
@@ -101,13 +96,8 @@ class ContactInfo(models.Model):
     def __str__(self):
         return '{}'.format(self.content)
 
-    def validate_not_empty_fields(self):
-        """Make sure certain char or text fields are not empty"""
-        if not self.content:
-            raise ValidationError({'content': 'empty content'})
-
     def save(self, *args, **kwargs):
-        self.validate_not_empty_fields()
+        self.full_clean()
         super(ContactInfo, self).save(*args, **kwargs)
 
 
@@ -125,13 +115,8 @@ class Class(models.Model):
     def __str__(self):
         return self.class_id
 
-    def validate_not_empty_fields(self):
-        """Make sure certain char or text fields are not empty"""
-        if not self.class_id:
-            raise ValidationError({'class_id': 'empty class ID'})
-
     def save(self, *args, **kwargs):
-        self.validate_not_empty_fields()
+        self.full_clean()
         super(Class, self).save(*args, **kwargs)
 
 
@@ -168,25 +153,18 @@ class Course(models.Model):
             title=self.title, year=self.year, semester=self.semester,
         )
 
-    def validate_not_empty_fields(self):
-        """Make sure certain char or text fields are not empty"""
-        if not self.title:
-            raise ValidationError({'title': 'empty course title'})
-        if not self.semester:
-            raise ValidationError({'semester': 'empty course semester'})
-
     def validate_group_size(self):
         if self.min_group_size > self.max_group_size:
-            raise ValidationError(
-                {'min_group_size': 'Min size of groups must not be greater than max size.',
-                 'max_group_size': 'Min size of groups must not be greater than max size.'}
-            )
+            raise ValidationError({
+                'min_group_size': 'Ensure this value is greater than the max one.',
+                'max_group_size': 'Ensure this value is less or equal than the min one.',
+            })
 
     def clean(self):
         self.validate_group_size()
 
     def save(self, *args, **kwargs):
-        self.validate_not_empty_fields()
+        self.full_clean()
         self.validate_group_size()
         super(Course, self).save(*args, **kwargs)
 
@@ -245,14 +223,8 @@ class Student(UserProfile):
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.s_id)
 
-    def validate_not_empty_fields(self):
-        """Make sure certain char or text fields are not empty"""
-        super(Student, self).validate_not_empty_fields()
-        if not self.s_id:
-            raise ValidationError({'s_id': 'empty student ID'})
-
     def save(self, *args, **kwargs):
-        self.validate_not_empty_fields()
+        self.full_clean()
         super(Student, self).save(*args, **kwargs)
 
     def get_all_courses(self):
@@ -303,14 +275,8 @@ class Instructor(UserProfile):
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.inst_id)
 
-    def validate_not_empty_fields(self):
-        """Make sure certain char or text fields are not empty"""
-        super(Instructor, self).validate_not_empty_fields()
-        if not self.inst_id:
-            raise ValidationError({'inst_id': 'empty instructor ID'})
-
     def save(self, *args, **kwargs):
-        self.validate_not_empty_fields()
+        self.full_clean()
         super(Instructor, self).save(*args, **kwargs)
 
     def get_all_courses(self):
@@ -447,7 +413,14 @@ class CourseAssignment(models.Model):
         default=timezone.now(),
         verbose_name='assigned time',
     )
-    grade_ratio = models.DecimalField(max_digits=3, decimal_places=2)
+    grade_ratio = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        validators=[
+            MinValueValidator(Decimal(0)),
+            MaxValueValidator(Decimal(1.0)),
+        ]
+    )
 
     class Meta:
         verbose_name = "course assignment"
@@ -460,23 +433,8 @@ class CourseAssignment(models.Model):
             course=self.course,
         )
 
-    def validate_not_empty_fields(self):
-        """Make sure certain char or text fields are not empty"""
-        if not self.title:
-            raise ValidationError({'title': 'empty title'})
-
-    def validate_grade_ratio(self):
-        """Make sure ratio is (0, 1]"""
-        if not (Decimal(0) < self.grade_ratio <= Decimal(1.0)):
-            raise ValidationError({'grade_ratio': 'Grade ratio should be in (0, 1].'})
-
-    def clean(self):
-        self.validate_grade_ratio()
-
     def save(self, *args, **kwargs):
-        self.validate_not_empty_fields()
-        self.validate_grade_ratio()
-
+        self.full_clean()
         super(CourseAssignment, self).save(*args, **kwargs)
 
     def get_no_in_course(self):
@@ -521,22 +479,19 @@ class Teaches(models.Model):
 class Takes(models.Model):
     student = models.ForeignKey(Student, related_name='takes')
     course = models.ForeignKey(Course, related_name='takes')
-    grade = models.DecimalField(max_digits=5, decimal_places=2,
-                                null=True, blank=True, )
+    grade = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0), MaxValueValidator(100), ]
+    )
 
     class Meta:
         verbose_name_plural = 'takes'
 
-    def validate_grade(self):
-        """Check grade is in [0, 100]"""
-        if self.grade and not (0 <= self.grade <= 100):
-            raise ValidationError({'grade': 'Grade should be in [0, 100]'})
-
-    def clean(self):
-        self.validate_grade()
-
     def save(self, *args, **kwargs):
-        self.validate_grade()
+        self.full_clean()
         super(Takes, self).save(*args, **kwargs)
 
     def __str__(self):

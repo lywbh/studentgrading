@@ -88,6 +88,9 @@ class StudentMethodTests(TestCase):
             factories.StudentFactory(s_id='')
         self.assertTrue(cm.exception.message_dict.get('s_id'))
 
+        with self.assertRaises(ValueError):
+            factories.StudentFactory(s_class=None)
+
     def test_get_course(self):
         stu1 = factories.StudentFactory()
         cs1 = factories.CourseFactory()
@@ -135,6 +138,10 @@ class CourseAssignmentMethodTests(TestCase):
 class GroupMethodTests(TestCase):
 
     def test_save(self):
+        # use default number
+        grp = factories.GroupFactory(number='')
+        self.assertEqual(grp.number, grp.course.NUMBERS_LIST[0])
+
         # normal add
         course = factories.CourseFactory()
         grp1 = factories.GroupFactory(course=course)
@@ -187,13 +194,6 @@ class ModelTests(TestCase):
         # test login and retrieve user
         user1 = factories.UserFactory(username='test1234', password='abcd1234')
         instructor1 = factories.InstructorFactory(user=user1)
-        self.post(
-            reverse('users:login'),
-            data={'username': 'test1234', 'password': 'abcd1234'},
-        )
-        self.get(
-            reverse('users:login'),
-        )
 
         from django.contrib.auth import authenticate
         from studentgrading.users.models import User
@@ -229,10 +229,60 @@ class CourseMethodTests(TestCase):
         self.assertTrue(cm.exception.message_dict.get('min_group_size'))
         self.assertTrue(cm.exception.message_dict.get('max_group_size'))
 
+        with self.assertRaises(ValidationError) as cm:
+            factories.CourseFactory(min_group_size=-1, max_group_size=-1)
+        self.assertTrue(cm.exception.message_dict.get('min_group_size'))
+        self.assertTrue(cm.exception.message_dict.get('max_group_size'))
+
         try:
             factories.CourseFactory(min_group_size=2, max_group_size=2)
         except Exception as e:
             self.fail(str(e))
+
+        # check year
+        with self.assertRaises(ValidationError) as cm:
+            factories.CourseFactory(year=-1)
+        self.assertIn('year', cm.exception.message_dict)
+
+        with self.assertRaises(ValidationError) as cm:
+            factories.CourseFactory(year=10000)
+        self.assertIn('year', cm.exception.message_dict)
+
+        # check semester
+        with self.assertRaises(ValidationError) as cm:
+            factories.CourseFactory(semester='SUM')
+        self.assertIn('semester', cm.exception.message_dict)
+
+    def test_clean(self):
+        # check group size
+        cs = Course(
+            title='SEP',
+            semester='AUT',
+            min_group_size=-1,
+        )
+        with self.assertRaises(ValidationError) as cm:
+            cs.full_clean()
+        self.assertIn('min_group_size', cm.exception.message_dict)
+
+        # check group size
+        cs = Course(
+            title='SEP',
+            semester='AUT',
+            max_group_size=-1,
+        )
+        with self.assertRaises(ValidationError) as cm:
+            cs.full_clean()
+        self.assertIn('max_group_size', cm.exception.message_dict)
+
+        # check year
+        cs = Course(
+            title='SEP',
+            year=-1,
+            semester='AUT',
+        )
+        with self.assertRaises(ValidationError) as cm:
+            cs.full_clean()
+        self.assertIn('year', cm.exception.message_dict)
 
     def test_get_next_group_number(self):
         course = factories.CourseFactory()
@@ -295,9 +345,15 @@ class CourseAssignmentTests(TestCase):
         self.assertIn('title', cm.exception.message_dict)
 
         # invalid grade ratio
-        with self.assertRaises(ValidationError) as cm:
+        try:
             factories.CourseAssignmentFactory(grade_ratio=0)
-        self.assertIn('grade_ratio', cm.exception.message_dict)
+        except ValidationError as e:
+            self.fail(str(e))
+
+        try:
+            factories.CourseAssignmentFactory(grade_ratio=1)
+        except ValidationError as e:
+            self.fail(str(e))
 
         with self.assertRaises(ValidationError) as cm:
             factories.CourseAssignmentFactory(grade_ratio=-0.1)
