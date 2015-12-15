@@ -11,8 +11,8 @@ function showAllCourse() {
             '<td>' + data[i]['fields'].title + '</td>' +
             '<td>' + data[i]['fields'].year + data[i]['fields'].semester + '</td>' +
             '<td>' + data[i]['fields'].description + '</td>' +
-            '<td><button type="button" class="btn btn-primary btn-lg listbtn" data-toggle="modal" onclick="showCourseDetails(' + data[i]['pk'] + ')">详情</button>' + 
-            '<form method="post" action="stuxls/" enctype="multipart/form-data"><input type="file" id="stuxls" name="stuxls"><input type="submit" name="submit"></form></td>'
+            '<td><form method="post" action="stuxls/?course_id=' + data[i]['pk'] + '" enctype="multipart/form-data"><input type="file" id="stuxls" name="stuxls"><input type="submit" name="submit"></form></td>'+ 
+            '<td><button type="button" class="btn btn-primary btn-lg listbtn" data-toggle="modal" onclick="showCourseDetails(' + data[i]['pk'] + ')">详情</button></td>'
         );
         newtr.append(newtd);
         $('.courselist table tbody').append(newtr);

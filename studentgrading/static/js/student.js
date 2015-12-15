@@ -34,18 +34,23 @@ function showCourseDetails(id) {
 function showMyGroup() {
     var course_id = $('#course_id').val();
     var data = getMyGroup(course_id);
-    $('#mygroup table tbody').empty();
-    for(var i = 0, len = data['content'].length; i < len; ++i) {
-        var newtr = $('<tr></tr>');
-        var newtd = $(
-            '<td>' + data['content'][i].s_id + '</td>' +
-            '<td>' + data['content'][i].name + '</td>' +
-            '<td>' + data['content'][i].s_class + '</td>'
-        );
-        newtr.append(newtd);
-        $('#mygroup table tbody').append(newtr);
+    if(data) {
+        $('#mygroup table tbody').empty();
+        for(var i = 0, len = data['content'].length; i < len; ++i) {
+            var newtr = $('<tr></tr>');
+            var newtd = $(
+                '<td>' + data['content'][i].s_id + '</td>' +
+                '<td>' + data['content'][i].name + '</td>' +
+                '<td>' + data['content'][i].s_class + '</td>'
+            );
+            newtr.append(newtd);
+            $('#mygroup table tbody').append(newtr);
+        }
+        $('#mygroup').modal();
     }
-    $('#mygroup').modal();
+    else {
+        alert("You haven't joined a group!");
+    }
 }
 
 function showNewGroup() {
@@ -57,12 +62,12 @@ function showNewGroup() {
         var data = getCandidateStudent(course_id);
         $('#newgroup #candidatelist').empty();
         $('#newgroup table tbody').empty();
-        for(var i = 0, len = data['content'].length; i < len; ++i) {
-            var newoption = $('<option value="' + data['content'][i].s_id + '">' + data['content'][i].name + '</option>');
+        for(var i = 0, len = data.length; i < len; ++i) {
+            var newoption = $('<option value="' + data[i]['fields'].s_id + '">' + data[i]['fields'].name + '</option>');
             $('#newgroup #candidatelist').append(newoption);
         }
+        $('#newgroup').modal();
     }
-    $('#newgroup').modal();
 }
 
 function addMember() {
@@ -71,18 +76,41 @@ function addMember() {
     var newtr = $(
         '<tr><td>' + id + 
         '</td><td>' + name +
-        '</td><td><button type="button" class="btn btn-primary btn-lg listbtn" data-toggle="modal" onclick="delMember(' + id + ', ' + name + ')">删除</button></td></tr>'
+        '</td><td><button type="button" class="btn btn-primary btn-lg listbtn" data-toggle="modal" onclick="delMember(' + id + ', ' + "'" + name + "'" + ')">删除</button></td></tr>'
     );
-    $('#newgroup #candidatelist').remove('option[value=' + $("#candidatelist option:selected").val() + ']');
+    $('#candidatelist option[value=' + id + ']').remove();
     $('#newgroup table tbody').append(newtr);
 }
 
 function delMember(id, name) {
     var newoption = $('<option value="' + id + '">' + name + '</option>');
     $('#newgroup #candidatelist').append(newoption);
-    $('#newgroup table tbody').remove("");
+    $('#newgroup table tbody tr').each(function() {
+        if($(this).children().eq(0).html() == id) {
+            $(this).remove();
+        }
+    });
 }
 
 function saveGroup() {
-    
+    var data = [];
+    $('#newgroup table tbody tr').each(function() {
+        data.push($(this).children().eq(0).html());
+    });
+    $.ajax({
+       url: 'savegroup/',
+       type: 'POST',
+       data: {
+           idList: data,
+           course_id: $('#course_id').val(),
+           group_name: $('#new_group_name').val()
+       },
+       success: function(data) {
+           console.log(data);
+           $('#newgroup').modal('hide');
+       },
+       fail: function(data) {
+           console.log(data);
+       }
+    });
 }

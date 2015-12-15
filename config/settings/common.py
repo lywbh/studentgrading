@@ -168,8 +168,8 @@ AUTHENTICATION_BACKENDS = (
 # Custom user app defaults
 # Select the correct user model
 AUTH_USER_MODEL = 'users.User'
-LOGIN_REDIRECT_URL = 'users:redirect'
-LOGIN_URL = 'users:login'
+LOGIN_REDIRECT_URL = 'core:redirect'
+LOGIN_URL = 'core:login'
 
 # Location of root django.contrib.admin URL, use {% url 'admin:index' %}
 ADMIN_URL = r'^admin/'

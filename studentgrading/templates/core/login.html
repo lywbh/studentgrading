@@ -8,7 +8,7 @@
   <div class="row">
     <div class="col-md-5">
 
-      <form class="login form-group" method="POST" action="{% url 'users:login' %}">
+      <form class="login form-group" method="POST" action="{% url 'core:login' %}">
         {% csrf_token %}
 		<h2>{% trans "Sign In" %}</h2>
         <table>

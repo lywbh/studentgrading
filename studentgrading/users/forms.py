@@ -17,6 +17,7 @@ from django.contrib.auth.hashers import identify_hasher
 
 User = get_user_model()
 
+
 def is_password_usable(password):
     """
     like Django's is_password_usable, but only checks for unusable
@@ -24,6 +25,7 @@ def is_password_usable(password):
     """
     from django.contrib.auth.hashers import UNUSABLE_PASSWORD_PREFIX
     return not password.startswith(UNUSABLE_PASSWORD_PREFIX)
+
 
 class BetterReadOnlyPasswordHashWidget(ReadOnlyPasswordHashWidget):
     """
@@ -49,6 +51,7 @@ class BetterReadOnlyPasswordHashWidget(ReadOnlyPasswordHashWidget):
 
         return format_html('<div{attrs}><strong>{summary}</strong></div>',
                            attrs=final_attrs, summary=summary)
+
 
 class UserCreationForm(forms.ModelForm):
     """
@@ -122,8 +125,10 @@ class UserChangeForm(forms.ModelForm):
     the user, but replaces the password field with admin's
     password hash display field.
     """
-    password = ReadOnlyPasswordHashField(label=_("Password"),
-        widget=BetterReadOnlyPasswordHashWidget)
+    password = ReadOnlyPasswordHashField(
+        label=_("Password"),
+        widget=BetterReadOnlyPasswordHashWidget
+    )
 
     class Meta:
         model = User

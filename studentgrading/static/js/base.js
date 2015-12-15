@@ -113,3 +113,19 @@ function delCourse(data) {
     });
     return ret;
 }
+
+function getCandidateStudent(course_id) {
+    var ret;
+    $.ajax({
+       url: 'getcandidatestudent?course_id=' + course_id,
+       async: false,
+       success: function(data) {
+           console.log(data);
+           ret = data;
+       },
+       fail: function(data) {
+           console.log(data);
+       }
+    });
+    return ret;
+}
