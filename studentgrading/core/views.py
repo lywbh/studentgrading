@@ -5,9 +5,11 @@ from django.http import HttpResponse, JsonResponse, HttpResponseRedirect
 from django.shortcuts import render
 from django.core import serializers
 from django.views.decorators.csrf import csrf_exempt
+from django.views.generic import RedirectView
 from django.core.urlresolvers import reverse
+from braces.views import LoginRequiredMixin
 
-from .models import *
+from .models import Student, Instructor, get_role_of
 
 
 def teacher_view(request):
@@ -16,6 +18,17 @@ def teacher_view(request):
 
 def student_view(request):
     return render(request, 'core/student.html')
+
+
+class UserRedirectView(LoginRequiredMixin, RedirectView):
+    permanent = False
+
+    def get_redirect_url(self, *args, **kwargs):
+        role = get_role_of(self.request.user)
+        if isinstance(role, Student):
+            return reverse('core:student')
+        elif isinstance(role, Instructor):
+            return reverse('core:teacher')
 
 
 def getTeachCourse(request):
@@ -36,7 +49,7 @@ def getTeachCourse(request):
         else:
             courselist = role.get_all_courses()
             data = serializers.serialize('json', courselist)
-            return HttpResponse(data, content_type='application/json')
+            return JsonResponse(data)
 
 
 def getStuCourse(request):
@@ -55,7 +68,7 @@ def getStuCourse(request):
         else:
             courselist = role.get_all_courses()
             data = serializers.serialize('json', courselist)
-            return HttpResponse(data, content_type='application/json')
+            return JsonResponse(data)
 
 
 def getAllStudent(request):
