@@ -53,7 +53,7 @@ def getTeachCourse(request):
         else:
             courselist = role.get_all_courses()
             data = serializers.serialize('json', courselist)
-            return JsonResponse(data)
+            return HttpResponse(data, content_type='application/json')
 
 
 def getStuCourse(request):
@@ -72,7 +72,7 @@ def getStuCourse(request):
         else:
             courselist = role.get_all_courses()
             data = serializers.serialize('json', courselist)
-            return JsonResponse(data)
+            return HttpResponse(data, content_type='application/json')
 
 
 def getAllStudent(request):

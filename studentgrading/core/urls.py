@@ -23,7 +23,7 @@ urlpatterns = patterns(
         url(r'^delcourse/$', views.delCourse, name='delcourse'),
         url(r'^stuxls/$', views.stuXls, name='stuxls'),
     ))),
-    url(r'^student/$', include(patterns(
+    url(r'^student/', include(patterns(
         '',
         url(r'^$', views.StudentView.as_view(), name='student'),
         url(r'^getcourse/$', views.getStuCourse, name='getstucourse'),
