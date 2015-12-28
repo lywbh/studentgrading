@@ -23,3 +23,6 @@ SECRET_KEY = env("SECRET_KEY")
 MIDDLEWARE_CLASSES += ('debug_toolbar.middleware.DebugToolbarMiddleware',)
 INSTALLED_APPS += ('debug_toolbar', )
 
+# REST framework tests
+# ------------------------------------------------------------------------------
+REST_FRAMEWORK['TEST_REQUEST_DEFAULT_FORMAT'] = 'json'

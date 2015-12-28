@@ -206,19 +206,39 @@ class Course(models.Model):
         )
 
 
+class StudentManager(models.Manager):
+    def create_student_with_courses(self, courses, **kwargs):
+        """
+        Create a student object with a list of course objects and other args.
+
+        Use default value for Takes.  Handle no exceptions.
+        courses can bt empty
+        """
+        if not courses:
+            courses = []
+
+        stu = self.create(**kwargs)
+        for course in courses:
+            Takes.objects.create(student=stu, course=course)
+
+        return stu
+
+
 class Student(UserProfile):
     s_id = models.CharField(
-        verbose_name=_("student's id"),
+        verbose_name=_("student ID"),
         unique=True,
         max_length=255,
         validators=[validate_all_digits_in_string],
     )
-    s_class = models.ForeignKey(Class, verbose_name=_("student's class"))
+    s_class = models.ForeignKey(Class, verbose_name=_("class"))
     courses = models.ManyToManyField(
         Course,
         through='Takes',
         through_fields=('student', 'course')
     )
+
+    objects = StudentManager()
 
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.s_id)
@@ -226,6 +246,27 @@ class Student(UserProfile):
     def save(self, *args, **kwargs):
         self.full_clean()
         super(Student, self).save(*args, **kwargs)
+
+    def take_new_courses(self, courses):
+        """
+        Add new courses to the Takes of the student
+
+        Ignore the course already taken
+        Use default grade(None)
+        """
+        for course in courses:
+            if self.takes.filter(course__pk=course.pk).exists():
+                continue
+            Takes.objects.create(student=self, course=course)
+
+    def can_take(self, course):
+        """
+        Return True if the student can take the course
+
+        :param course: course object
+        :return: Boolean
+        """
+        return True
 
     def get_all_courses(self):
         return self.courses.all()

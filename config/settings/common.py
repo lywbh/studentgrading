@@ -36,7 +36,8 @@ DJANGO_APPS = (
     'django.contrib.admin',
 )
 THIRD_PARTY_APPS = (
-    # 'crispy_forms',  # Form layouts
+    'crispy_forms',  # Form layouts
+    'rest_framework',
 )
 
 # Apps specific for this project go here.
@@ -101,6 +102,7 @@ DATABASES = {
     # 'default': env.db('DATABASE_URL', engine='django.db.backends.oracle')
     'default': get_db_setting_str('DATABASE_URL')
 }
+DATABASES['default']['ATOMIC_REQUESTS'] = True
 
 # GENERAL CONFIGURATION
 # ------------------------------------------------------------------------------
@@ -174,4 +176,18 @@ LOGIN_URL = 'core:login'
 # Location of root django.contrib.admin URL, use {% url 'admin:index' %}
 ADMIN_URL = r'^admin/'
 
-# Your common stuff: Below this line define 3rd party library settings
+# REST Framework Configuration
+# ------------------------------------------------------------------------------
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+    ),
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.BasicAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ),
+    'DEFAULT_FILTER_BACKENDS': (
+        'rest_framework.filters.DjangoFilterBackend',
+    )
+}
+

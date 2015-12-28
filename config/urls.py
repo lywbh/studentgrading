@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.conf.urls import patterns, include, url
-from django.conf.urls.static import static
 from django.contrib import admin
+
 
 urlpatterns = patterns(
     '',
@@ -13,11 +13,12 @@ urlpatterns = patterns(
         r'^core/',
         include("studentgrading.core.urls", namespace="core")
     ),
-)
-"""
-    # User management
+
     url(
-        r'^users/',
-        include("studentgrading.users.urls", namespace="users")
+        r'^api/',
+        include('studentgrading.core.api', namespace='api')
     ),
-"""
+    url(
+        r'^api/api-auth/',
+        include('rest_framework.urls', namespace='rest_framework')),
+)
