@@ -17,6 +17,7 @@ router.register(r'users', users_viewsets.UserViewSet)
                     'student-course',
                     parents_query_lookups=['student'])
 )
+router.register(r'instructors', core_viewsets.InstructorViewSet)
 router.register(r'classes', core_viewsets.ClassViewSet)
 router.register(r'courses', core_viewsets.CourseViewSet)
 

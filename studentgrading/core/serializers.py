@@ -6,10 +6,14 @@ from rest_framework.relations import reverse
 
 from .models import (
     Student, Class, Course, Takes,
+    Instructor,
     has_four_level_perm,
 )
 
 
+# -----------------------------------------------------------------------------
+# Custom Fields Class
+# -----------------------------------------------------------------------------
 class StudentCoursesHyperlinkedIdentityField(serializers.HyperlinkedIdentityField):
     """
     The HyperlinkedIdentityField in StudentCoursesSerializer
@@ -41,6 +45,9 @@ class StudentCoursesHyperlinkedRelatedField(serializers.HyperlinkedRelatedField)
         return self.get_queryset().get(**lookup_kwargs)
 
 
+# -----------------------------------------------------------------------------
+# Student Serializers
+# -----------------------------------------------------------------------------
 class StudentSerializer(serializers.HyperlinkedModelSerializer):
     courses = serializers.HyperlinkedIdentityField(
         source='takes',
@@ -82,6 +89,38 @@ class ReadStudentSerializer(StudentSerializer):
     class Meta(StudentSerializer.Meta):
         read_only_fields = StudentSerializer.Meta.read_only_fields + (
             'name', 'sex', 's_id', 's_class',
+        )
+
+
+# -----------------------------------------------------------------------------
+# Instructor Serializers
+# -----------------------------------------------------------------------------
+class InstructorSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = Instructor
+        fields = ('url', 'id', 'user', 'name', 'sex', 'inst_id', )
+        read_only_fields = ('user', )
+        extra_kwargs = {
+            'url': {'view_name': 'api:instructor-detail', },
+            'user': {'view_name': 'api:user-detail', },
+        }
+
+    def to_representation(self, instance):
+        ret = super(InstructorSerializer, self).to_representation(instance)
+        user = self.context['request'].user
+        if not has_four_level_perm('core.view_instructor', user, instance):
+            del ret['user']
+
+            if not has_four_level_perm('core.view_instructor_normal', user, instance):
+                del ret['inst_id']
+
+        return ret
+
+
+class ReadInstructorSerializer(InstructorSerializer):
+    class Meta(InstructorSerializer.Meta):
+        read_only_fields = InstructorSerializer.Meta.read_only_fields + (
+            'name', 'sex', 'inst_id',
         )
 
 

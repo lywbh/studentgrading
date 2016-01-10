@@ -8,7 +8,7 @@ from guardian.shortcuts import assign_perm, remove_perm, get_objects_for_user
 
 from . import factories
 from ..models import (
-    Student,
+    Student, Instructor,
     has_four_level_perm,
 )
 
@@ -61,12 +61,11 @@ class StudentAPITests(APITestCase):
             factories.StudentFactory()
 
         self.force_authenticate_user(stu1.user)
+        # student GET
         response = self.get_student_list()
         self.assertEqual(len(response.data), 1)
 
-        # student GET
         response = self.get_student_detail(stu1)       # itself
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(self.is_itself_fields(response.data))
 
         for stu in Student.objects.exclude(pk=stu1.pk):     # others
@@ -78,10 +77,6 @@ class StudentAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
         # student PUT, PATCH
-        response = self.put_student(stu1, {})
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        response = self.patch_student(stu1, {})
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         for stu in Student.objects.all():
             response = self.put_student(stu, {})
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -205,3 +200,89 @@ class StudentAPITests(APITestCase):
             response = self.get_student_list()
             self.assertEqual(len(response.data), 20 + 20)
             self.force_authenticate_user(None)
+
+
+class InstructorAPITests(APITestCase):
+
+    def get_instructor_list(self):
+        return self.client.get(reverse('api:instructor-list'))
+
+    def get_instructor_detail(self, inst):
+        return self.client.get(reverse('api:instructor-detail', kwargs={'pk': inst.pk}))
+
+    def post_instructor(self, inst_dict):
+        return self.client.post(reverse('api:instructor-list'), inst_dict)
+
+    def put_instructor(self, inst, inst_dict):
+        return self.client.put(reverse('api:instructor-detail', kwargs={'pk': inst.pk}), inst_dict)
+
+    def patch_instructor(self, inst, inst_dict):
+        return self.client.patch(reverse('api:instructor-detail', kwargs={'pk': inst.pk}), inst_dict)
+
+    def delete_instructor(self, inst):
+        return self.client.delete(reverse('api:instructor-detail', kwargs={'pk': inst.pk}))
+
+    def is_itself_fields(self, inst_dict):
+        return (set(inst_dict.keys()) ==
+                {'url', 'id', 'name', 'sex', 'inst_id', 'user', })
+
+    def is_other_inst_fields(self, inst_dict):
+        return (set(inst_dict.keys()) ==
+                {'url', 'id', 'name', 'sex', 'inst_id', })
+
+    def is_course_stu_fields(self, inst_dict):
+        return (set(inst_dict.keys()) ==
+                {'url', 'id', 'name', 'sex', })
+
+    def force_authenticate_user(self, user):
+        self.client.force_authenticate(user=user)
+
+    def test_access_normal_instructor(self):
+        inst1 = factories.InstructorFactory()
+        for i in range(10):
+            factories.InstructorFactory()
+
+        self.force_authenticate_user(inst1.user)
+
+        # instructor GET
+        response = self.get_instructor_list()
+        self.assertEqual(len(response.data), Instructor.objects.count())
+
+        response = self.get_instructor_detail(inst1)
+        self.assertTrue(self.is_itself_fields(response.data))
+
+        for inst in Instructor.objects.exclude(pk=inst1.pk):
+            response = self.get_instructor_detail(inst)
+            self.assertTrue(self.is_other_inst_fields(response.data))
+
+        # instructor POST, PUT, PATCH, DELETE
+        response = self.post_instructor({})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        for inst in Instructor.objects.all():
+            response = self.put_instructor(inst, {})
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            response = self.patch_instructor(inst, {})
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            response = self.delete_instructor(inst)
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # student GET, POST, PUT, PATCH, DELETE
+        stu1 = factories.StudentFactory()
+        self.force_authenticate_user(stu1.user)
+        response = self.get_instructor_list()
+        self.assertEqual(len(response.data), 0)
+        for inst in Instructor.objects.all():
+            response = self.get_instructor_detail(inst)
+            self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+            response = self.post_instructor({})
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            response = self.put_instructor(inst, {})
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            response = self.patch_instructor(inst, {})
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            response = self.delete_instructor(inst)
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+

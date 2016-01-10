@@ -7,12 +7,13 @@ from guardian.shortcuts import get_objects_for_user
 
 from .serializers import (
     StudentSerializer, ReadStudentSerializer,
+    InstructorSerializer, ReadInstructorSerializer,
     ClassSerializer, CourseSerializer,
     AdminStudentCoursesSerializer, NormalStudentCoursesSerializer,
 )
 from .models import (
     has_four_level_perm,
-    Student, Class, Course, Takes,
+    Student, Class, Course, Takes, Instructor,
 )
 from .permissions import (
     StudentObjectPermissions, StudentCoursesObjectPermissions,
@@ -182,8 +183,7 @@ class StudentViewSet(FourLevelPermModelViewSet):
                        filters.DjangoFilterBackend, )
     filter_fields = ('s_class', )
     permission_classes = (FourLevelObjectPermissions, )
-    # add this to ensure browsable api is okay
-    serializer_class = ReadStudentSerializer
+    serializer_class = ReadStudentSerializer    # add this to ensure browsable api is okay
 
     read_serializer_class = ReadStudentSerializer
     write_serializer_class = StudentSerializer
@@ -207,6 +207,19 @@ class StudentCoursesViewSet(NestedViewSetMixin, viewsets.ModelViewSet):
 # -----------------------------------------------------------------------------
 # Instructor ViewSets
 # -----------------------------------------------------------------------------
+class InstructorViewSet(FourLevelPermModelViewSet):
+    queryset = Instructor.objects.all()
+    filter_backends = (FourLevelObjectPermissionsFilter, )
+    permission_classes = (FourLevelObjectPermissions, )
+    serializer_class = ReadInstructorSerializer     # add this to ensure browsable api is okay
+
+    read_serializer_class = ReadInstructorSerializer
+    write_serializer_class = InstructorSerializer
+    base_write_serializer_class = write_serializer_class
+    normal_write_serializer_class = write_serializer_class
+    advanced_write_serializer_class = write_serializer_class
+
+
 class ClassViewSet(viewsets.ModelViewSet):
 
     queryset = Class.objects.all()

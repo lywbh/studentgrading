@@ -1024,7 +1024,6 @@ def instructor_assign_perms(sender, **kwargs):
         # object perms
         # 1. instructor itself
         assign_perm('core.view_instructor', user, instructor)
-        assign_perm('core.change_instructor', user, instructor)
 
         # other instructors
         for inst in Instructor.objects.exclude(pk=instructor.pk):
@@ -1058,7 +1057,6 @@ def instructor_remove_perms(sender, **kwargs):
     remove_perm('core.view_student', user)
 
     remove_perm('core.view_instructor', user, instructor)
-    remove_perm('core.change_instructor', user, instructor)
 
     for inst in Instructor.objects.exclude(pk=instructor.pk):
         inst.remove_base_perms_for_instructor(user)
