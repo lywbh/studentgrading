@@ -38,7 +38,6 @@ DJANGO_APPS = (
 THIRD_PARTY_APPS = (
     'crispy_forms',  # Form layouts
     'rest_framework',
-    'rest_framework_swagger',
     'guardian',
 )
 
