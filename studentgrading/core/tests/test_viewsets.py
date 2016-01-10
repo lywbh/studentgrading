@@ -133,24 +133,40 @@ class StudentAPITests(APITestCase):
             response = self.get_student_detail(stu)
             self.assertTrue(self.is_classmate_fields(response.data))
 
+        # PUT, PATCH, DELETE
+        for stu in cls1.students.exclude(pk=stu1.pk):
+            response = self.put_student(stu, {})
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            response = self.patch_student(stu, {})
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            response = self.delete_student(stu)
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_student_access_course_stu(self):
         course1 = factories.CourseFactory()
-        stu_cs1_list = []
+        stu1 = factories.StudentTakesCourseFactory(courses__course=course1)
         for i in range(10):
-            stu_cs1_list.append(factories.StudentTakesCourseFactory(courses__course=course1))
+            factories.StudentTakesCourseFactory(courses__course=course1)
             factories.StudentFactory()
-
         course_stus = Student.objects.takes_courses([course1])
-        for stu in stu_cs1_list:
-            self.force_authenticate_user(stu.user)
+        self.force_authenticate_user(stu1.user)
 
-            response = self.get_student_list()
-            self.assertEqual(len(response.data), 10)
-            for course_stu in course_stus.exclude(pk=stu.pk):
-                response = self.get_student_detail(course_stu)
-                self.assertTrue(self.is_student_course_stu_fields(response.data))
+        # GET
+        response = self.get_student_list()
+        self.assertEqual(len(response.data), course_stus.count())
 
-            self.force_authenticate_user(None)
+        for stu in course_stus.exclude(pk=stu1.pk):
+            response = self.get_student_detail(stu)
+            self.assertTrue(self.is_student_course_stu_fields(response.data))
+
+        # PUT, PATCH, DELETE
+        for stu in course_stus:
+            response = self.put_student(stu, {})
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            response = self.patch_student(stu, {})
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            response = self.delete_student(stu)
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_api(self):
         cls1 = factories.ClassFactory()
@@ -284,5 +300,27 @@ class InstructorAPITests(APITestCase):
             response = self.delete_instructor(inst)
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_inst_access_course_inst(self):
+        course1 = factories.CourseFactory()
+        inst1 = factories.InstructorTeachesCourseFactory(courses__course=course1)
+        for i in range(3):
+            factories.InstructorTeachesCourseFactory(courses__course=course1)
+            factories.InstructorFactory()
+        course_insts = Instructor.objects.gives_courses([course1])
+        self.force_authenticate_user(inst1.user)
+
+        # GET
+        response = self.get_instructor_list()
+        self.assertEqual(len(response.data), Instructor.objects.count())
+        for inst in course_insts.exclude(pk=inst1.pk):
+            response = self.get_instructor_detail(inst)
+            self.assertTrue(self.is_other_inst_fields(response.data))
+            # PUT, PATCH, DELETE
+            response = self.put_instructor(inst, {})
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            response = self.patch_instructor(inst, {})
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            response = self.delete_instructor(inst)
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 

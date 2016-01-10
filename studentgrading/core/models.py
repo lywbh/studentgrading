@@ -820,6 +820,18 @@ class StudentContactInfo(ContactInfo):
     student = models.ForeignKey(Student, related_name='contact_infos')
 
 
+class InstructorQuerySet(models.QuerySet):
+    def gives_courses(self, courses):
+        query = Q()
+        for course in courses:
+            query |= Q(courses=course)
+        return self.filter(query)
+
+
+class InstructorManager(models.Manager):
+    pass
+
+
 class Instructor(UserProfile):
 
     inst_id = models.CharField(
@@ -834,6 +846,7 @@ class Instructor(UserProfile):
         through='Teaches',
         through_fields=('instructor', 'course')
     )
+    objects = InstructorManager.from_queryset(InstructorQuerySet)()
 
     class Meta:
         permissions = (
@@ -1003,7 +1016,6 @@ def instructor_assign_perms(sender, **kwargs):
         # model perms
         # 1. instructor
         assign_perm('core.view_instructor', user)
-        assign_perm('core.change_instructor', user)
         # 2. takes
         assign_perm('core.view_takes', user)
         assign_perm('core.change_takes', user)
@@ -1042,7 +1054,6 @@ def instructor_remove_perms(sender, **kwargs):
     user = instructor.user
 
     remove_perm('core.view_instructor', user)
-    remove_perm('core.change_instructor', user)
 
     remove_perm('core.view_takes', user)
     remove_perm('core.change_takes', user)
