@@ -8,6 +8,16 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
+from django.db.models.signals import post_save, pre_delete
+from django.dispatch import receiver
+from django.conf import settings
+from django.db.models import Q
+from django.contrib.contenttypes.models import ContentType
+
+from guardian.models import UserObjectPermission
+from guardian.models import GroupObjectPermission
+from guardian.shortcuts import assign_perm
+from guardian.mixins import GuardianUserMixin
 
 
 class UserManager(BaseUserManager):
@@ -27,7 +37,7 @@ class UserManager(BaseUserManager):
         return user
 
 
-class User(AbstractBaseUser, PermissionsMixin):
+class User(GuardianUserMixin, PermissionsMixin, AbstractBaseUser):
 
     username = models.CharField(
         max_length=255,
@@ -50,6 +60,9 @@ class User(AbstractBaseUser, PermissionsMixin):
         ordering = ['username']
         verbose_name = _('user')
         verbose_name_plural = _('users')
+        permissions = (
+            ('view_user', 'View User'),
+        )
 
     def get_full_name(self):
         return self.username
@@ -60,3 +73,26 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.username
 
+
+@receiver(post_save, sender=User)
+def user_assign_perms(sender, **kwargs):
+    """
+    Assign related perms to user after creation
+    """
+    user, created = kwargs['instance'], kwargs['created']
+    if created and user.pk != settings.ANONYMOUS_USER_ID:
+        assign_perm('users.view_user', user)
+        assign_perm('users.view_user', user, user)
+        assign_perm('users.change_user', user)
+        assign_perm('users.change_user', user, user)
+
+
+@receiver(pre_delete, sender=User)
+def remove_obj_perms_connected_with_user(sender, instance, **kwargs):
+    """
+    Remove all object permissions connected with user before deletion
+    """
+    filters = Q(content_type=ContentType.objects.get_for_model(instance),
+                object_pk=instance.pk)
+    UserObjectPermission.objects.filter(filters).delete()
+    GroupObjectPermission.objects.filter(filters).delete()

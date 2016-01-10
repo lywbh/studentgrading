@@ -101,7 +101,7 @@ class GroupAdmin(admin.ModelAdmin):
 # ------------------------------------------------------------------------------
 class TeachesAdmin(admin.ModelAdmin):
     list_display = ['instructor', 'get_course_title', 'get_course_year',
-                    'get_course_semester', 'assignments_count', ]
+                    'get_course_semester', ]
 
     def get_course_title(self, obj):
         return obj.course.title

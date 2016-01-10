@@ -38,6 +38,8 @@ DJANGO_APPS = (
 THIRD_PARTY_APPS = (
     'crispy_forms',  # Form layouts
     'rest_framework',
+    'rest_framework_swagger',
+    'guardian',
 )
 
 # Apps specific for this project go here.
@@ -165,6 +167,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # ------------------------------------------------------------------------------
 AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',
+    'guardian.backends.ObjectPermissionBackend',
 )
 
 # Custom user app defaults
@@ -180,14 +183,14 @@ ADMIN_URL = r'^admin/'
 # ------------------------------------------------------------------------------
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
-    ),
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework.authentication.BasicAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.permissions.IsAuthenticated',
     ),
     'DEFAULT_FILTER_BACKENDS': (
         'rest_framework.filters.DjangoFilterBackend',
     )
 }
 
+# django-guardian Configuration
+# ------------------------------------------------------------------------------
+ANONYMOUS_USER_ID = -1
+GUARDIAN_MONKEY_PATCH = False

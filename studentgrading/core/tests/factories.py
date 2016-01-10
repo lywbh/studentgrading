@@ -105,6 +105,15 @@ class CourseFactory(factory.django.DjangoModelFactory):
         [Course.SEMESTER_CHOICES[0][0], Course.SEMESTER_CHOICES[1][0]]
     )
 
+    @factory.post_generation
+    def assignments(self, create, extracted, **kwargs):
+        if not create:
+            return
+
+        if extracted:
+            for assignmt in extracted:
+                self.assignments.add(assignmt)
+
 
 class StudentFactory(UserProfileFactory):
     class Meta:
@@ -147,15 +156,6 @@ class TeachesFactory(factory.django.DjangoModelFactory):
 
     instructor = factory.SubFactory(InstructorFactory)
     course = factory.SubFactory(CourseFactory)
-
-    @factory.post_generation
-    def assignments(self, create, extracted, **kwargs):
-        if not create:
-            return
-
-        if extracted:
-            for assignmt in extracted:
-                self.assignments.add(assignmt)
 
 
 class InstructorTeachesCourseFactory(InstructorFactory):

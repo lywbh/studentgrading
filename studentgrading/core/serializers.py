@@ -6,6 +6,7 @@ from rest_framework.relations import reverse
 
 from .models import (
     Student, Class, Course, Takes,
+    has_four_level_perm,
 )
 
 
@@ -41,7 +42,6 @@ class StudentCoursesHyperlinkedRelatedField(serializers.HyperlinkedRelatedField)
 
 
 class StudentSerializer(serializers.HyperlinkedModelSerializer):
-
     courses = serializers.HyperlinkedIdentityField(
         source='takes',
         view_name='api:student-course-list',
@@ -50,21 +50,42 @@ class StudentSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = Student
-        fields = ('url', 'id', 'user', 's_id', 's_class', 'name', 'sex', 'courses', )
+        fields = ('url', 'id', 'user', 'name', 'sex', 's_id', 's_class', 'courses', )
+        read_only_fields = ('user', )
         extra_kwargs = {
             'url': {'view_name': 'api:student-detail', },
             'user': {
-                'queryset': get_user_model().objects.all(),
                 'view_name': 'api:user-detail',
             },
             's_class': {
-                'queryset': Class.objects.all(),
                 'view_name': 'api:class-detail',
             }
         }
 
+    def to_representation(self, instance):
+        ret = super(StudentSerializer, self).to_representation(instance)
+        user = self.context['request'].user
+        if not has_four_level_perm('core.view_student', user, instance):
+            del ret['user']
 
-class StudentCoursesSerializer(serializers.HyperlinkedModelSerializer):
+            if not has_four_level_perm('core.view_student_advanced', user, instance):
+                del ret['courses']
+
+                if not has_four_level_perm('core.view_student_normal', user, instance):
+                    del ret['s_id']
+                    del ret['s_class']
+
+        return ret
+
+
+class ReadStudentSerializer(StudentSerializer):
+    class Meta(StudentSerializer.Meta):
+        read_only_fields = StudentSerializer.Meta.read_only_fields + (
+            'name', 'sex', 's_id', 's_class',
+        )
+
+
+class AdminStudentCoursesSerializer(serializers.HyperlinkedModelSerializer):
 
     url = StudentCoursesHyperlinkedIdentityField(
         view_name='api:student-course-detail',
@@ -73,6 +94,21 @@ class StudentCoursesSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = Takes
         fields = ('url', 'id', 'course', 'grade')
+        extra_kwargs = {
+            'course': {'view_name': 'api:course-detail'},
+        }
+
+
+class NormalStudentCoursesSerializer(serializers.HyperlinkedModelSerializer):
+
+    url = StudentCoursesHyperlinkedIdentityField(
+        view_name='api:student-course-detail',
+    )
+
+    class Meta:
+        model = Takes
+        fields = ('url', 'id', 'course', 'grade')
+        read_only_fields = ('course', 'grade', )
         extra_kwargs = {
             'course': {'view_name': 'api:course-detail'},
         }

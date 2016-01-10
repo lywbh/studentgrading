@@ -9,11 +9,17 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.translation import ugettext_lazy as _
 from django.utils import timezone
 from django.db.models import Q
+from django.dispatch import receiver
+from django.db.models.signals import post_save, post_delete
+from django.forms.models import model_to_dict
+
+from guardian.shortcuts import assign_perm, remove_perm
 
 from ..utils.import_data import get_student_dataset, handle_uploaded_file, delete_uploaded_file
 from ..users.models import User
 
 
+# ------------------------------------------------------------------------------
 # Helper Functions
 # ------------------------------------------------------------------------------
 def validate_all_digits_in_string(string):
@@ -21,6 +27,174 @@ def validate_all_digits_in_string(string):
         raise ValidationError('%s is not of all digits' % string)
 
 
+class ModelDiffMixin(object):
+    """
+    A model mixin that tracks model fields' values and provide some useful api
+    to know what fields have been changed.
+
+    You should explicitly call save_all_field_diff() when you are done with diff
+    """
+    def __init__(self, *args, **kwargs):
+        super(ModelDiffMixin, self).__init__(*args, **kwargs)
+        self.__initial = self._dict
+
+    @property
+    def _dict(self):
+        return model_to_dict(self, fields=[field.name for field in self._meta.fields])
+
+    @property
+    def diff(self):
+        past = self.__initial
+        now = self._dict
+        diffs = [(k, (v, now[k])) for k, v in past.items() if v != now[k]]
+        return dict(diffs)
+
+    @property
+    def has_changed(self):
+        return bool(self.diff)
+
+    @property
+    def changed_fields(self):
+        return list(self.diff.keys())
+
+    def get_field_diff(self, field_name):
+        """
+        Returns a diff for field if it's changed and None otherwise
+        """
+        return self.diff.get(field_name, None)
+
+    def get_past_field_pk(self, field_name):
+        diff = self.diff.get(field_name, None)
+        return diff[0] if diff else None
+
+    def save_all_field_diff(self):
+        """
+        Save differences
+        """
+        self.__initial = self._dict
+
+
+def split_four_level_perm_string(perm):
+    """
+    Split a four-level permission string into level string and base string.
+
+    e.g. `'core.view_student'` to `'all'`, `'core.view_student'`
+    e.g. `'core.view_student_base'` to `'base'`, `'core.view_student'`
+    :param perm: a four-level permission string
+    :return: level string and base string pair
+    """
+    frags = perm.split('_')
+    frags_len = len(frags)
+    if frags_len == 2:
+        # all permission
+        level_name = 'all'
+        base_perm = perm
+    elif frags_len == 3:
+        # one of the three level
+        level_name = frags[-1]
+        base_perm = frags[0] + '_' + frags[1]
+    else:
+        raise ValueError('Invalid permission string.')
+
+    return level_name, base_perm
+
+
+def assign_four_level_perm(perm, user, obj, override=False):
+    """
+    Assigns four-level view/change permission to user on obj
+
+    One user can only have one of the four-level permissions of same action on obj.
+    Higher-level permission will override lower one, otherwise not by default.
+    If `override` is set to `True`, new permission will override old one.
+    Model of obj should define four-level permissions, or DoesNotExist exception will be raised.
+    Use `guardian.shortcuts.assign_perm`.
+    :param perm: perm string, same as `assign_perm`
+    :param user: instance of `User`, same `assign_perm`
+    :param obj: model instance, same as `assign_perm`
+    :param override: indicate if force overriding old perms
+    """
+    level_name, base_perm = split_four_level_perm_string(perm)
+
+    all_perm = base_perm
+    base_level_perm = base_perm + '_base'
+    normal_level_perm = base_perm + '_normal'
+    advanced_level_perm = base_perm + '_advanced'
+
+    if override:
+        remove_perm(base_level_perm, user, obj)
+        remove_perm(normal_level_perm, user, obj)
+        remove_perm(advanced_level_perm, user, obj)
+        assign_perm(perm, user, obj)
+        return
+
+    if level_name == 'base':
+        if (not user.has_perm(normal_level_perm, obj) and
+           not user.has_perm(advanced_level_perm, obj) and
+           not user.has_perm(all_perm, obj)):
+            assign_perm(perm, user, obj)
+    elif level_name == 'normal':
+        if user.has_perm(base_level_perm, obj):
+            remove_perm(base_level_perm, user, obj)
+        if not user.has_perm(advanced_level_perm, obj):
+            assign_perm(perm, user, obj)
+    elif level_name == 'advanced':
+        if user.has_perm(base_level_perm, obj):
+            remove_perm(base_level_perm, user, obj)
+        elif user.has_perm(normal_level_perm, obj):
+            remove_perm(normal_level_perm, user, obj)
+        if not user.has_perm(all_perm, obj):
+            assign_perm(perm, user, obj)
+    elif level_name == 'all':
+        if user.has_perm(base_level_perm, obj):
+            remove_perm(base_level_perm, user, obj)
+        elif user.has_perm(normal_level_perm, obj):
+            remove_perm(normal_level_perm, user, obj)
+        elif user.has_perm(advanced_level_perm, obj):
+            remove_perm(advanced_level_perm, user, obj)
+        assign_perm(perm, user, obj)
+    else:
+        raise ValueError('Invalid level name.')
+
+
+def has_four_level_perm(perm, user, obj, exact=False):
+    """
+    Checks four-level permissions.
+
+    By default, if providing permission is lower-level than existing, return `True`.
+    If `exact` is set to `True`, only return `True` on exact matching.
+    :param perm: permission string
+    :param user: instance of User
+    :param obj: target model instance
+    :param exact: exact matching or not
+    """
+    if user.has_perm(perm, obj):
+        return True
+    else:
+        if exact: return False
+
+    level_name, base_perm = split_four_level_perm_string(perm)
+
+    if level_name == 'all':
+        return False
+
+    all_perm = base_perm
+    normal_level_perm = base_perm + '_normal'
+    advanced_level_perm = base_perm + '_advanced'
+
+    if level_name == 'base':
+        return (user.has_perm(normal_level_perm, obj) or
+                user.has_perm(advanced_level_perm, obj) or
+                user.has_perm(all_perm, obj))
+    if level_name == 'normal':
+        return (user.has_perm(advanced_level_perm, obj) or
+                user.has_perm(all_perm, obj))
+    if level_name == 'advanced':
+        return user.has_perm(all_perm, obj)
+    else:
+        raise ValueError('Invalid level name.')
+
+
+# ------------------------------------------------------------------------------
 # Model Classes
 # ------------------------------------------------------------------------------
 class UserProfile(models.Model):
@@ -111,6 +285,9 @@ class Class(models.Model):
 
     class Meta:
         verbose_name_plural = 'Classes'
+        permissions = (
+            ('view_class', 'Can view class'),
+        )
 
     def __str__(self):
         return self.class_id
@@ -118,6 +295,15 @@ class Class(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super(Class, self).save(*args, **kwargs)
+
+
+class CourseQuerySet(models.QuerySet):
+    def taken_by(self, student):
+        return self.filter(students=student)
+
+
+class CourseManager(models.Manager):
+    pass
 
 
 class Course(models.Model):
@@ -145,8 +331,19 @@ class Course(models.Model):
         default=0,
     )
 
+    objects = CourseManager.from_queryset(CourseQuerySet)()
+
     class Meta:
         unique_together = (('title', 'year', 'semester'), )
+        permissions = (
+            ('view_course', 'Can view course'),
+            ('view_course_base', "Can view course, base level"),
+            ('view_course_normal', "Can view course, normal level"),
+            ('view_course_advanced', "Can view course, advanced level"),
+            ('change_course_base', "Can change course, base level"),
+            ('change_course_normal', "Can change course, normal level"),
+            ('change_course_advanced', "Can change course, advanced level"),
+        )
 
     def __str__(self):
         return '{title}-{year}-{semester}'.format(
@@ -168,6 +365,8 @@ class Course(models.Model):
         self.validate_group_size()
         super(Course, self).save(*args, **kwargs)
 
+    # Row-level methods
+    # -------------------------------------------------------------------------
     def get_used_group_numbers(self):
         """Return a list of used group number"""
         return self.group_set.values_list('number', flat=True)
@@ -205,6 +404,43 @@ class Course(models.Model):
             ~(q_stu_takes & q_stu_in_group) & q_stu_takes
         )
 
+    # Object permission related methods
+    # -------------------------------------------------------------------------
+    # Object permission handler for users
+    # Student
+    def assign_perms_for_course_stu(self, user):
+        assign_perm('core.view_course', user, self)
+
+    def remove_perms_for_course_stu(self, user):
+        remove_perm('core.view_course', user, self)
+
+    def has_perms_for_course_stu(self, user):
+        return user.has_perm('core.view_course', self)
+
+    # Instructor
+    def assign_perms_for_course_inst(self, user):
+        assign_perm('core.view_course', user, self)
+        assign_four_level_perm('core.change_course_base', user, self)
+        assign_perm('core.delete_course', user, self)
+
+    def remove_perms_for_course_inst(self, user):
+        remove_perm('core.view_course', user, self)
+        remove_perm('core.change_course_base', user, self)
+        remove_perm('core.delete_course', user, self)
+
+    def has_perms_for_course_inst(self, user):
+        return (user.has_perm('core.view_course', self) and
+                user.has_perm('core.change_course_base', self) and
+                user.has_perm('core.delete_course', self))
+
+
+class StudentQuerySet(models.QuerySet):
+    def takes_courses(self, courses):
+        query = Q()
+        for course in courses:
+            query |= Q(courses=course)
+        return self.filter(query)
+
 
 class StudentManager(models.Manager):
     def create_student_with_courses(self, courses, **kwargs):
@@ -224,21 +460,35 @@ class StudentManager(models.Manager):
         return stu
 
 
-class Student(UserProfile):
+class Student(ModelDiffMixin, UserProfile):
     s_id = models.CharField(
         verbose_name=_("student ID"),
         unique=True,
         max_length=255,
         validators=[validate_all_digits_in_string],
     )
-    s_class = models.ForeignKey(Class, verbose_name=_("class"))
+    s_class = models.ForeignKey(Class, verbose_name=_("class"),
+                                related_name='students')
     courses = models.ManyToManyField(
         Course,
         through='Takes',
-        through_fields=('student', 'course')
+        through_fields=('student', 'course'),
+        related_name='students',
     )
 
-    objects = StudentManager()
+    objects = StudentManager.from_queryset(StudentQuerySet)()
+
+    class Meta:
+        permissions = (
+            ('view_student', "Can view student"),
+            ('view_student_base', "Can view student, base level"),
+            ('view_student_normal', "Can view student, normal level"),
+            ('view_student_advanced', "Can view student, advanced level"),
+            ('change_student_base', "Can change student, base level"),
+            ('change_student_normal', "Can change student, normal level"),
+            ('change_student_advanced', "Can change student, advanced level"),
+            ('student_non', "Redundant permission"),
+        )
 
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.s_id)
@@ -247,6 +497,8 @@ class Student(UserProfile):
         self.full_clean()
         super(Student, self).save(*args, **kwargs)
 
+    # Row-level methods
+    # -------------------------------------------------------------------------
     def take_new_courses(self, courses):
         """
         Add new courses to the Takes of the student
@@ -258,15 +510,6 @@ class Student(UserProfile):
             if self.takes.filter(course__pk=course.pk).exists():
                 continue
             Takes.objects.create(student=self, course=course)
-
-    def can_take(self, course):
-        """
-        Return True if the student can take the course
-
-        :param course: course object
-        :return: Boolean
-        """
-        return True
 
     def get_all_courses(self):
         return self.courses.all()
@@ -293,6 +536,285 @@ class Student(UserProfile):
                 return None
         return qs[0]    # only return the first group, there should be only one
 
+    def get_classmates(self):
+        return self.s_class.students.exclude(pk=self.pk)
+
+    def is_classmate_of(self, student):
+        """
+        Check if `student` is a classmate of student
+
+        Return `False` if `student` is student itself.
+        :param student: instance of Student
+        :return: `True` if it is, or `False`
+        """
+        if self is student:
+            return False
+
+        return student in self.get_classmates()
+
+    def is_taking_same_course_with(self, student):
+        """
+        Check if `student` is taking same course(s) with student.
+
+        Return `False` if `student` is student itself.
+        :param student: instance of Student
+        :return: `True` if it is, or `False`
+        """
+        if self is student:
+            return False
+
+        return Course.objects.filter(students=self).filter(
+            students=student).exists()
+
+    def is_taking_course_given_by(self, instructor):
+        """
+        Checks if student is taking course given by `instructor`
+
+        :param instructor: Instructor instance
+        :return: `True` or `False`
+        """
+        return self.courses.filter(instructors=instructor).exists()
+
+    # Object permission related methods
+    # -------------------------------------------------------------------------
+    # Object permission handlers for other users
+    # ------------------------------------
+    # For students
+    def assign_base_perms_for_student(self, user):
+        assign_perm('core.student_non', user, self)
+
+    def remove_base_perms_for_student(self, user):
+        remove_perm('core.student_non', user, self)
+
+    def has_base_perms_for_student(self, user):
+        return user.has_perm('core.student_non', self)
+
+    def assign_perms_for_course_stu(self, user):
+        """
+        Assign permissions for a student taking same course as student
+
+        Do not check if user is taking same course as student
+        :param user: User instance of a student
+        """
+        assign_four_level_perm('core.view_student_base', user, self)
+
+    def remove_perms_for_course_stu(self, user):
+        """
+        Remove permissions for a student taking same course as student
+
+        Do not check if user is taking same course as student
+        :param user: User instance of a student
+        """
+        remove_perm('core.view_student_base', user, self)
+
+    def has_perms_for_course_stu(self, user):
+        """
+        Check if user has permissions for student taking same course(s) as student
+
+        Do not check if user is taking same course as student
+        :param user: User instance of student
+        :return: `True` if has, or `False`
+        """
+        return has_four_level_perm('core.view_student_base', user, self)
+
+    def assign_perms_for_classmate(self, user, override=False):
+        """
+        Assign permissions for student's classmate.
+
+        Do not check if user is student's classmate.
+        :param user: User instance of a student
+        :param override: whether to clear view permissions first before assigning
+        """
+        assign_four_level_perm('core.view_student_normal', user, self, override)
+
+    def remove_perms_for_classmate(self, user):
+        """
+        Remove permissions for student's classmate.
+
+        Do not check if user is student's classmate.
+        :param user: User instance of a student
+        """
+        if (user.has_perm('core.view_student_advanced', self) or
+           user.has_perm('core.view_student', self)):
+            return
+
+        if self.is_taking_same_course_with(user.student):
+            self.assign_perms_for_course_stu(user)
+
+        remove_perm('core.view_student_normal', user, self)
+
+    def has_perms_for_classmate(self, user):
+        """
+        Check if user has permissions for student's classmate
+
+        :param user: User instance of student
+        :return: `True` if has, or `False`
+        """
+        return has_four_level_perm('core.view_student_normal', user, self)
+
+    # For instructors
+    def assign_base_perms_for_instructor(self, user):
+        """
+        Assign permissions for each instructor
+
+        Do not check if user is an instructor
+        :param user: User instance of a instructor
+        """
+        # all instructors have advanced read permissions on all students
+        assign_four_level_perm('core.view_student_advanced', user, self)
+
+    def remove_base_perms_for_instructor(self, user):
+        """
+        Remove permissions for each instructor.
+
+        Do not check if user is an instructor.
+        :param user: User instance of an instructor
+        """
+        remove_perm('core.view_student_advanced', user, self)
+
+    def has_base_perms_for_instructor(self, user):
+        """
+        Check if user has base permissions for instructor
+
+        :param user: User instance of an instructor
+        :return: `True` if has, or `False`
+        """
+        return has_four_level_perm('core.view_student_advanced', user, self)
+
+    def assign_perms_for_course_inst(self, user):
+        """
+        Assign permissions for student's course instructor
+
+        Do not check if user is student's course instructor
+        :param user: User instance of an instructor
+        """
+        assign_four_level_perm('core.view_student_advanced', user, self)
+
+    def remove_perms_for_course_inst(self, user):
+        """
+        Remove permissions for student's course instructor.
+
+        Do not check if user is student's course instructor.
+        :param user: User instance of an instructor
+        """
+        if not self.is_taking_course_given_by(user.instructor):
+            remove_perm('core.view_student_advanced', user, self)
+        # give instructor least perms
+        self.assign_base_perms_for_instructor(user)
+
+    def has_perms_for_course_inst(self, user):
+        """
+        Check if user has permissions for student taking same course(s) as student
+
+        :param user: User instance of an instructor
+        :return: `True` if has, or `False`
+        """
+        return has_four_level_perm('core.view_student_advanced', user, self)
+
+    # Object permission handlers for relationship
+    # ------------------------------------
+    def assign_class_perms(self):
+        """
+        Assign permissions when student-class relationship sets up
+        """
+        classmates = Student.objects.filter(
+            s_class=self.s_class).exclude(pk=self.pk).all()
+        for stu in classmates:
+            stu.assign_perms_for_classmate(self.user)
+            self.assign_perms_for_classmate(stu.user)
+
+    def remove_class_perms(self, s_class):
+        """
+        Remove permissions when student-class relationship sets up
+        """
+        classmates = Student.objects.filter(
+            s_class=s_class).exclude(pk=self.pk).all()
+        for stu in classmates:
+            stu.remove_perms_for_classmate(self.user)
+            self.remove_perms_for_classmate(stu.user)
+
+
+@receiver(post_save, sender=Student)
+def student_assign_perms(sender, **kwargs):
+    """
+    Assign permissions after saving student object(creation or update)
+    """
+    student, created = kwargs['instance'], kwargs['created']
+    user = student.user
+    if created:     # add permissions for new student
+        # model perms
+        # 1. student
+        assign_perm('core.view_student', user)
+        # 2. takes
+        assign_perm('core.view_takes', user)
+        # 3. course
+        assign_perm('core.view_course', user)
+        # 4. instructor
+        assign_perm('core.view_instructor', user)
+        # 5. teaches
+        assign_perm('core.view_teaches', user)
+
+        # object perms
+        # 1. student itself
+        assign_perm('core.view_student', user, student)
+
+        # other students
+        for stu in Student.objects.exclude(pk=student.pk):
+            stu.assign_base_perms_for_student(user)
+            student.assign_base_perms_for_student(stu.user)
+
+        # other instructors
+        for inst in Instructor.objects.all():
+            inst.assign_base_perms_for_student(user)
+            student.assign_base_perms_for_instructor(inst.user)
+
+        # foreign relationship perms
+        # 1. classmates have view permission
+        # and student has view perm to classmates too
+        student.assign_class_perms()
+
+    else:   # change permissions after updating student
+        old_cls_pk = student.get_past_field_pk('s_class')
+        if old_cls_pk:    # if student has a new class now
+            # remove all view perms from old classmates
+            old_cls = Class.objects.get(pk=old_cls_pk)
+            student.remove_class_perms(old_cls)
+            # assign view perms to new classmates
+            # and student has perm to new classmates too
+            if student.s_class:
+                student.assign_class_perms()
+
+    student.save_all_field_diff()
+
+
+@receiver(post_delete, sender=Student)
+def student_remove_perms(sender, **kwargs):
+    """
+    Remove permissions after deleting student object
+    """
+    student = kwargs['instance']
+    user = student.user
+    # remove perms after student is deleted
+    # remove model perms
+    remove_perm('core.view_student', user)
+    remove_perm('core.view_takes', user)
+    remove_perm('core.view_course', user)
+    remove_perm('core.view_instructor', user)
+    remove_perm('core.view_teaches', user)
+
+    remove_perm('core.view_student', user, student)
+
+    for stu in Student.objects.exclude(pk=student.pk):
+        stu.remove_base_perms_for_student(user)
+        student.remove_base_perms_for_student(stu.user)
+
+    for inst in Instructor.objects.all():
+        inst.remove_base_perms_for_student(user)
+        student.remove_base_perms_for_instructor(inst.user)
+
+    # remove all view perms from classmates
+    student.remove_class_perms(student.s_class)
+
 
 class StudentContactInfo(ContactInfo):
     student = models.ForeignKey(Student, related_name='contact_infos')
@@ -313,6 +835,18 @@ class Instructor(UserProfile):
         through_fields=('instructor', 'course')
     )
 
+    class Meta:
+        permissions = (
+            ('view_instructor', 'Can view instructor'),
+            ('view_instructor_base', "Can view instructor, base level"),
+            ('view_instructor_normal', "Can view instructor, normal level"),
+            ('view_instructor_advanced', "Can view instructor, advanced level"),
+            ('change_instructor_base', "Can change instructor, base level"),
+            ('change_instructor_normal', "Can change instructor, normal level"),
+            ('change_instructor_advanced', "Can change instructor, advanced level"),
+            ('instructor_non', 'Redundant permission'),
+        )
+
     def __str__(self):
         return '{name}-{id}'.format(name=self.name, id=self.inst_id)
 
@@ -320,6 +854,8 @@ class Instructor(UserProfile):
         self.full_clean()
         super(Instructor, self).save(*args, **kwargs)
 
+    # Row-level methods
+    # -------------------------------------------------------------------------
     def get_all_courses(self):
         return self.courses.all()
 
@@ -376,9 +912,319 @@ class Instructor(UserProfile):
         delete_uploaded_file(xlpath)
         return count
 
+    def is_giving_course_to(self, student):
+        """
+        Checks if instructor is giving course to `student`.
+
+        :param student: Student instance
+        :return: `True` or `False`
+        """
+        return self.courses.filter(students=student).exists()
+
+    # Object permission related methods
+    # -------------------------------------------------------------------------
+    # Object permission handlers for other users
+    # ------------------------------------
+    # For students
+    def assign_base_perms_for_student(self, user):
+        assign_perm('core.instructor_non', user, self)
+
+    def remove_base_perms_for_student(self, user):
+        remove_perm('core.instructor_non', user, self)
+
+    def has_base_perms_for_student(self, user):
+        return user.has_perm('core.instructor_non', self)
+
+    def assign_perms_for_course_stu(self, user):
+        """
+        Assign permissions for student taking instructor's course
+
+        Do not check if user is taking the course.
+        :param user: User instance of a student
+        """
+        assign_four_level_perm('core.view_instructor_base', user, self)
+
+    def remove_perms_for_course_stu(self, user):
+        """
+        Remove permissions for student taking instructor's course
+
+        Do not check if user is taking the course.
+        :param user: User instance of a student
+        """
+        if not self.is_giving_course_to(user.student):
+            remove_perm('core.view_instructor_base', user, self)
+        self.assign_base_perms_for_student(user)
+
+    def has_perms_for_course_stu(self, user):
+        """
+        Check if user has permissions for student taking instructor's course.
+
+        Do not check if user is taking the course.
+        :param user: User instance of student
+        :return: `True` if has, or `False`
+        """
+        return has_four_level_perm('core.view_instructor_base', user, self)
+
+    # For instructors
+    def assign_base_perms_for_instructor(self, user):
+        """
+        Assign permissions for instructor
+
+        :param user: User instance of instructor
+        """
+        assign_four_level_perm('view_instructor_normal', user, self)
+
+    def remove_base_perms_for_instructor(self, user):
+        """
+        Remove permissions for instructor
+
+        :param user: User instance of an instructor
+        """
+        remove_perm('core.view_instructor_normal', user, self)
+
+    def has_base_perms_for_instructor(self, user):
+        """
+        Check if `user` has permissions for instructor
+
+        :param user: User instance of an instructor
+        """
+        return has_four_level_perm('core.view_instructor_normal', user, self)
+
+
+@receiver(post_save, sender=Instructor)
+def instructor_assign_perms(sender, **kwargs):
+    """
+    Assign some model perms to new instructor
+    """
+    instructor, created = kwargs['instance'], kwargs['created']
+
+    user = instructor.user
+    if created:
+        # model perms
+        # 1. instructor
+        assign_perm('core.view_instructor', user)
+        assign_perm('core.change_instructor', user)
+        # 2. takes
+        assign_perm('core.view_takes', user)
+        assign_perm('core.change_takes', user)
+        assign_perm('core.add_takes', user)
+        assign_perm('core.delete_takes', user)
+        # 3. course
+        assign_perm('core.view_course', user)
+        assign_perm('core.change_course', user)
+        assign_perm('core.add_course', user)
+        assign_perm('core.delete_course', user)
+        # 4. student
+        assign_perm('core.view_student', user)
+        # 5. teaches
+        assign_perm('core.view_teaches', user)
+        assign_perm('core.add_teaches', user)
+        assign_perm('core.delete_teaches', user)
+
+        # object perms
+        # 1. instructor itself
+        assign_perm('core.view_instructor', user, instructor)
+        assign_perm('core.change_instructor', user, instructor)
+
+        # other instructors
+        for inst in Instructor.objects.exclude(pk=instructor.pk):
+            inst.assign_base_perms_for_instructor(user)
+            instructor.assign_base_perms_for_instructor(inst.user)
+
+        # other students
+        for stu in Student.objects.all():
+            stu.assign_base_perms_for_instructor(user)
+            instructor.assign_base_perms_for_student(stu.user)
+
+
+@receiver(post_delete, sender=Instructor)
+def instructor_remove_perms(sender, **kwargs):
+    instructor = kwargs['instance']
+    user = instructor.user
+
+    remove_perm('core.view_instructor', user)
+    remove_perm('core.change_instructor', user)
+
+    remove_perm('core.view_takes', user)
+    remove_perm('core.change_takes', user)
+    remove_perm('core.add_takes', user)
+    remove_perm('core.delete_takes', user)
+
+    remove_perm('core.view_course', user)
+    remove_perm('core.change_course', user)
+    remove_perm('core.add_course', user)
+    remove_perm('core.delete_course', user)
+
+    remove_perm('core.view_student', user)
+
+    remove_perm('core.view_instructor', user, instructor)
+    remove_perm('core.change_instructor', user, instructor)
+
+    for inst in Instructor.objects.exclude(pk=instructor.pk):
+        inst.remove_base_perms_for_instructor(user)
+        instructor.remove_base_perms_for_instructor(inst.user)
+
+    for stu in Student.objects.all():
+        stu.remove_base_perms_for_instructor(user)
+        instructor.remove_base_perms_for_student(stu.user)
+
 
 class InstructorContactInfo(ContactInfo):
     instructor = models.ForeignKey(Instructor, related_name='contact_infos')
+
+
+class Teaches(ModelDiffMixin, models.Model):
+    instructor = models.ForeignKey(Instructor, related_name='teaches')
+    course = models.ForeignKey(Course, related_name='teaches')
+
+    class Meta:
+        verbose_name_plural = 'teaches'
+        unique_together = (('instructor', 'course'), )
+        permissions = (
+            ('view_teaches', 'Can view teaches'),
+            ('view_teaches_base', 'Can view teaches - base level'),
+            ('view_teaches_normal', 'Can view teaches - normal level'),
+            ('view_teaches_advanced', 'Can view teaches - advanced level'),
+            ('change_teaches_base', 'Can change teaches - base level'),
+            ('change_teaches_normal', 'Can change teaches - normal level'),
+            ('change_teaches_advanced', 'Can change teaches - advanced level'),
+        )
+
+    def __str__(self):
+        return '({inst})-({course})'.format(
+            inst=str(self.instructor),
+            course=str(self.course),
+        )
+
+    # Object permission related methods
+    # -------------------------------------------------------------------------
+    # Object permission handlers for users
+    # ------------------------------------
+    # Student
+    def assign_perms_for_course_stu(self, user):
+        assign_perm('core.view_teaches', user, self)
+
+    def remove_perms_for_course_stu(self, user):
+        remove_perm('core.view_teaches', user, self)
+
+    def has_perms_for_course_stu(self, user):
+        return user.has_perm('core.view_teaches', self)
+
+    # Instructor
+    def assign_perms_for_course_inst(self, user):
+        assign_perm('core.view_teaches', user, self)
+        assign_perm('core.delete_teaches', user, self)
+
+    def remove_perms_for_course_inst(self, user):
+        remove_perm('core.view_teaches', user, self)
+        remove_perm('core.delete_teaches', user, self)
+
+    def has_perms_for_course_inst(self, user):
+        return (user.has_perm('core.view_teaches', self) and
+                user.has_perm('core.delete_teaches', self))
+
+    # Object permission handlers for relationship
+    # ------------------------------------
+    # teaches-instructor relationship
+    def assign_instructor_perms(self):
+        inst = self.instructor
+        course = self.course
+        takes_list = course.takes.all()
+
+        # instructor perms on teaches
+        self.assign_perms_for_course_inst(inst.user)
+        # instructor perms on course
+        course.assign_perms_for_course_inst(inst.user)
+
+        for takes in takes_list:
+            student = takes.student
+            # instructor perms on takes
+            takes.assign_perms_for_course_inst(inst.user)
+            # instructor perms on student, and vice versa
+            student.assign_perms_for_course_inst(inst.user)
+            inst.assign_perms_for_course_stu(student.user)
+
+    def remove_instructor_perms(self, instructor):
+        inst = instructor
+        course = self.course
+        takes_list = course.takes.all()
+
+        # instructor perms on teaches
+        self.remove_perms_for_course_inst(inst.user)
+        # instructor perms on course
+        course.remove_perms_for_course_inst(inst.user)
+
+        for takes in takes_list:
+            student = takes.student
+            # instructor perms on takes
+            takes.remove_perms_for_course_inst(inst.user)
+            # instructor perms on student, and vice versa
+            student.remove_perms_for_course_inst(inst.user)
+            inst.remove_perms_for_course_stu(student.user)
+
+    # teaches-course relationship
+    def assign_course_perms(self):
+        inst = self.instructor
+        course = self.course
+        takes_list = self.course.takes.all()
+
+        # instructor perms on course
+        course.assign_perms_for_course_inst(inst.user)
+
+        for takes in takes_list:
+            student = takes.student
+            # instructor perms on takes
+            takes.assign_perms_for_course_inst(inst.user)
+            # student perms on teaches
+            self.assign_perms_for_course_stu(student.user)
+            # instructor perms on student and vice versa
+            student.assign_perms_for_course_inst(inst.user)
+            inst.assign_perms_for_course_stu(student.user)
+
+    def remove_course_perms(self, course):
+        inst = self.instructor
+        takes_list = course.takes.all()
+
+        # instructor perms on course
+        course.remove_perms_for_course_inst(inst.user)
+
+        for takes in takes_list:
+            student = takes.student
+            # instructor perms on takes
+            takes.remove_perms_for_course_inst(inst.user)
+            # student perms on teaches
+            self.remove_perms_for_course_stu(student.user)
+            # instructor perms on student and vice versa
+            student.remove_perms_for_course_inst(inst.user)
+            inst.remove_perms_for_course_stu(student.user)
+
+
+@receiver(post_save, sender=Teaches)
+def teaches_assign_perms(instance, created, **kwargs):
+    teaches = instance
+    if created:
+        teaches.assign_course_perms()
+        teaches.assign_instructor_perms()
+    else:
+        old_course_pk = teaches.get_past_field_pk('course')
+        old_instructor_pk = teaches.get_past_field_pk('instructor')
+        if old_course_pk:
+            old_course = Course.objects.get(pk=old_course_pk)
+            teaches.remove_course_perms(old_course)
+            teaches.assign_course_perms()
+        if old_instructor_pk:
+            old_instructor = Instructor.objects.get(pk=old_instructor_pk)
+            teaches.remove_instructor_perms(old_instructor)
+            teaches.assign_instructor_perms()
+
+    teaches.save_all_field_diff()
+
+
+@receiver(post_delete, sender=Teaches)
+def teaches_remove_perms(instance, **kwargs):
+    teaches = instance
+    teaches.remove_course_perms(teaches.course)
+    teaches.remove_instructor_perms(teaches.instructor)
 
 
 class Group(models.Model):
@@ -497,27 +1343,7 @@ class CourseAssignment(models.Model):
         return ranking
 
 
-class Teaches(models.Model):
-    instructor = models.ForeignKey(Instructor)
-    course = models.ForeignKey(Course)
-
-    class Meta:
-        verbose_name_plural = "teaches"
-
-    def __str__(self):
-        return '{course_title}-{inst}-{course_year}-{course_semester}'.format(
-            course_title=self.course.title,
-            course_year=self.course.year,
-            course_semester=self.course.get_semester_display(),
-            inst=self.instructor.name,
-        )
-
-    def assignments_count(self):
-        return self.assignments.count()
-    assignments_count.short_description = 'number of assignments'
-
-
-class Takes(models.Model):
+class Takes(ModelDiffMixin, models.Model):
     student = models.ForeignKey(Student, related_name='takes')
     course = models.ForeignKey(Course, related_name='takes')
     grade = models.DecimalField(
@@ -530,16 +1356,196 @@ class Takes(models.Model):
 
     class Meta:
         verbose_name_plural = 'takes'
+        unique_together = (('student', 'course'), )
+        permissions = (
+            ('view_takes', 'Can view takes'),
+            ('view_takes_base', 'Can view takes - base level'),
+            ('view_takes_normal', 'Can view takes - normal level'),
+            ('view_takes_advanced', 'Can view takes - advanced level'),
+            ('change_takes_base', 'Can change takes - base level'),
+            ('change_takes_normal', 'Can change takes - normal level'),
+            ('change_takes_advanced', 'Can change takes - advanced level'),
+        )
 
     def save(self, *args, **kwargs):
         self.full_clean()
         super(Takes, self).save(*args, **kwargs)
 
     def __str__(self):
-        return '{stu}-{course}'.format(
-            stu=self.student.__str__(),
-            course=self.course.__str__(),
+        return '({stu})-({course})'.format(
+            stu=str(self.student),
+            course=str(self.course),
         )
+
+    # Object permission related methods
+    # -------------------------------------------------------------------------
+    # Object permission handlers for users
+    # ------------------------------------
+    # Student
+    def assign_perms_for_course_stu(self, user):
+        assign_perm('core.view_takes', user, self)
+
+    def remove_perms_for_course_stu(self, user):
+        remove_perm('core.view_takes', user, self)
+
+    def has_perms_for_course_stu(self, user):
+        return user.has_perm('core.view_takes', self)
+
+    # Instructor
+    def assign_perms_for_course_inst(self, user):
+        assign_perm('core.view_takes', user, self)
+        assign_four_level_perm('core.change_takes_base', user, self)
+        assign_perm('core.delete_takes', user, self)
+
+    def remove_perms_for_course_inst(self, user):
+        remove_perm('core.view_takes', user, self)
+        remove_perm('core.change_takes_base', user, self)
+        remove_perm('core.delete_takes', user, self)
+
+    def has_perms_for_course_inst(self, user):
+        return (user.has_perm('core.view_takes', self) and
+                has_four_level_perm('core.change_takes_base', user, self) and
+                user.has_perm('core.delete_takes', self))
+
+    # Object permission handlers for relationship
+    # ------------------------------------
+    # takes-student relationship
+    def assign_student_perms(self):
+        """
+        Assign permissions after a new student is bound to takes
+        """
+        student = self.student
+        stu_user = self.student.user
+        course = self.course
+        teaches_list = self.course.teaches.all()
+
+        # student perms on takes
+        self.assign_perms_for_course_stu(stu_user)
+        # student perms on course
+        course.assign_perms_for_course_stu(stu_user)
+        for teaches in teaches_list:
+            inst = teaches.instructor
+            # student perms on teaches
+            teaches.assign_perms_for_course_stu(stu_user)
+            # student perms on instructor
+            student.assign_perms_for_course_inst(inst.user)
+            # instructor perms on student
+            inst.assign_perms_for_course_stu(stu_user)
+
+    def remove_student_perms(self, student):
+        """
+        Remove permissions after takes is bound to new student
+
+        :param student: old student
+        """
+        stu_user = student.user
+        course = self.course
+        teaches_list = course.teaches.all()
+
+        # student perms on takes
+        self.remove_perms_for_course_stu(stu_user)
+        # student perms on course
+        course.remove_perms_for_course_stu(stu_user)
+
+        for teaches in teaches_list:
+            # student view teaches
+            teaches.remove_perms_for_course_stu(stu_user)
+            # if student does not take any more instructor's course,
+            # then remove
+            inst = teaches.instructor
+            student.remove_perms_for_course_inst(inst.user)
+            inst.remove_perms_for_course_stu(stu_user)
+
+    # takes-course relationship
+    def assign_course_perms(self):
+        """
+        Assign permissions after a new course is bound to takes
+        """
+        student = self.student
+        course = self.course
+        teaches_list = self.course.teaches.all()
+
+        # student perms on course
+        course.assign_perms_for_course_stu(student.user)
+
+        for teaches in teaches_list:
+            inst = teaches.instructor
+            # student view teaches
+            teaches.assign_perms_for_course_stu(student.user)
+            # instructor perms on takes
+            self.assign_perms_for_course_inst(inst.user)
+            # instructor perms on student, and vice versa
+            student.assign_perms_for_course_inst(inst.user)
+            inst.assign_perms_for_course_stu(student.user)
+
+        # student perms on other students taking the course, and vice versa
+        other_students_list = course.students.exclude(pk=student.pk)
+        for stu in other_students_list:
+            stu.assign_perms_for_course_stu(student.user)
+            student.assign_perms_for_course_stu(stu.user)
+
+    def remove_course_perms(self, course):
+        """
+        Remove permissions after takes is bound to new course.
+
+        Assume student does not change.
+        :param course: old course
+        """
+        student = self.student
+        teaches_list = course.teaches.all()
+
+        # student perms on course
+        course.remove_perms_for_course_stu(student.user)
+
+        for teaches in teaches_list:
+            inst = teaches.instructor
+            # student view teaches
+            teaches.remove_perms_for_course_stu(student.user)
+            # instructor perms on takes
+            self.remove_perms_for_course_inst(inst.user)
+            # instructor perms on student, and vice versa
+            student.remove_perms_for_course_inst(inst.user)
+            inst.remove_perms_for_course_stu(student.user)
+
+        # student perms on other students taking the course, and vice versa
+        other_students_list = course.students.exclude(pk=student.pk)
+        for stu in other_students_list:
+            stu.remove_perms_for_course_stu(student.user)
+            student.remove_perms_for_course_stu(stu.user)
+
+
+@receiver(post_save, sender=Takes)
+def takes_assign_perms(sender, **kwargs):
+    """
+    Assign related perms after creation of takes object
+    """
+    takes, created = kwargs['instance'], kwargs['created']
+
+    if created:
+        # student perms
+        takes.assign_student_perms()
+        # instructor perms
+        takes.assign_course_perms()
+    else:
+        old_course_pk = takes.get_past_field_pk('course')
+        old_stu_pk = takes.get_past_field_pk('student')
+        if old_course_pk:
+            old_course = Course.objects.get(pk=old_course_pk)
+            takes.remove_course_perms(old_course)
+            takes.assign_course_perms()
+        if old_stu_pk:
+            old_stu = Student.objects.get(pk=old_stu_pk)
+            takes.remove_student_perms(old_stu)
+            takes.assign_student_perms()
+
+    takes.save_all_field_diff()
+
+
+@receiver(post_delete, sender=Takes)
+def takes_remove_perms(sender, **kwargs):
+    takes = kwargs['instance']
+    takes.remove_course_perms(takes.course)
+    takes.remove_student_perms(takes.student)
 
 
 # Global Functions
