@@ -7,11 +7,20 @@ from .factories import (
     StudentFactory, ClassFactory, UserFactory, CourseFactory,
 )
 from ..serializers import (
-    StudentSerializer,
+    StudentSerializer, StudentCoursesSerializer, WriteStudentCoursesSerializer,
 )
 from ..models import (
     Student,
 )
+from . import factories
+
+
+def get_course_url(course):
+    return reverse('api:course-detail', kwargs={'pk': course.pk})
+
+
+def get_student_url(student):
+    return reverse('api:student-detail', kwargs={'pk': student.pk})
 
 
 class StudentTests(APITestCase):
@@ -36,4 +45,33 @@ class StudentTests(APITestCase):
 
 
 class StudentCoursesTests(APITestCase):
-    pass
+
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.request = self.factory.get('/')
+
+    def test_save_without_grade(self):
+        stu1 = factories.StudentFactory()
+        course1 = factories.CourseFactory()
+
+        serializer = StudentCoursesSerializer(data=dict(
+            student=get_student_url(stu1),
+            course=get_course_url(course1),
+        ))
+        self.assertTrue(serializer.is_valid())
+        takes1 = serializer.save()
+        self.assertEqual(takes1.grade, None)
+
+    def test_save_with_grade(self):
+        stu1 = factories.StudentFactory()
+        course1 = factories.CourseFactory()
+
+        serializer = StudentCoursesSerializer(data=dict(
+            student=get_student_url(stu1),
+            course=get_course_url(course1),
+            grade='90',
+        ))
+        self.assertTrue(serializer.is_valid())
+        takes1 = serializer.save()
+        self.assertEqual(takes1.grade, 90)
+

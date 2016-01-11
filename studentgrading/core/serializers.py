@@ -15,9 +15,6 @@ from .models import (
 # Custom Fields Class
 # -----------------------------------------------------------------------------
 class StudentCoursesHyperlinkedIdentityField(serializers.HyperlinkedIdentityField):
-    """
-    The HyperlinkedIdentityField in StudentCoursesSerializer
-    """
     def get_url(self, obj, view_name, request, format):
         url_kwargs = {
             'parent_lookup_student': obj.student.pk,
@@ -58,7 +55,6 @@ class StudentSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = Student
         fields = ('url', 'id', 'user', 'name', 'sex', 's_id', 's_class', 'courses', )
-        read_only_fields = ('user', )
         extra_kwargs = {
             'url': {'view_name': 'api:student-detail', },
             'user': {
@@ -87,9 +83,7 @@ class StudentSerializer(serializers.HyperlinkedModelSerializer):
 
 class ReadStudentSerializer(StudentSerializer):
     class Meta(StudentSerializer.Meta):
-        read_only_fields = StudentSerializer.Meta.read_only_fields + (
-            'name', 'sex', 's_id', 's_class',
-        )
+        read_only_fields = ('user', 'name', 'sex', 's_id', 's_class', 'courses', )
 
 
 # -----------------------------------------------------------------------------
@@ -99,7 +93,6 @@ class InstructorSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = Instructor
         fields = ('url', 'id', 'user', 'name', 'sex', 'inst_id', )
-        read_only_fields = ('user', )
         extra_kwargs = {
             'url': {'view_name': 'api:instructor-detail', },
             'user': {'view_name': 'api:user-detail', },
@@ -119,9 +112,35 @@ class InstructorSerializer(serializers.HyperlinkedModelSerializer):
 
 class ReadInstructorSerializer(InstructorSerializer):
     class Meta(InstructorSerializer.Meta):
-        read_only_fields = InstructorSerializer.Meta.read_only_fields + (
-            'name', 'sex', 'inst_id',
-        )
+        read_only_fields = ('user', 'name', 'sex', 'inst_id', )
+
+
+# -----------------------------------------------------------------------------
+# StudentCourses Serializers (students/{pk}/courses/)
+# -----------------------------------------------------------------------------
+class StudentCoursesSerializer(serializers.HyperlinkedModelSerializer):
+
+    url = StudentCoursesHyperlinkedIdentityField(
+        view_name='api:student-course-detail',
+    )
+
+    class Meta:
+        model = Takes
+        fields = ('url', 'id', 'student', 'course', 'grade')
+        extra_kwargs = {
+            'student': {'view_name': 'api:student-detail'},
+            'course': {'view_name': 'api:course-detail'},
+        }
+
+
+class ReadStudentCoursesSerializer(StudentCoursesSerializer):
+    class Meta(StudentCoursesSerializer.Meta):
+        read_only_fields = ('student', 'course', 'grade', )
+
+
+class WriteStudentCoursesSerializer(StudentCoursesSerializer):
+    class Meta(StudentCoursesSerializer.Meta):
+        fields = ('url', 'id', 'grade')
 
 
 class AdminStudentCoursesSerializer(serializers.HyperlinkedModelSerializer):

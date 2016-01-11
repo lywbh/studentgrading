@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 from rest_framework import viewsets, filters, mixins, status, generics
 from rest_framework.response import Response
+from rest_framework.relations import reverse
 
 from rest_framework_extensions.mixins import NestedViewSetMixin
 from guardian.shortcuts import get_objects_for_user
 
 from .serializers import (
     StudentSerializer, ReadStudentSerializer,
+    StudentCoursesSerializer, ReadStudentCoursesSerializer, WriteStudentCoursesSerializer,
     InstructorSerializer, ReadInstructorSerializer,
     ClassSerializer, CourseSerializer,
     AdminStudentCoursesSerializer, NormalStudentCoursesSerializer,
@@ -54,7 +56,8 @@ class FourLevelObjectPermissionsFilter(filters.BaseFilterBackend):
 class FourLevelPermCreateModelMixin(mixins.CreateModelMixin):
     def create(self, request, *args, **kwargs):
         serializer_class = self.get_write_serializer_class()
-        serializer = serializer_class(data=request.data, context=self.get_serializer_context())
+        serializer_data = self.get_serializer_data(request, *args, **kwargs)
+        serializer = serializer_class(data=serializer_data, context=self.get_serializer_context())
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
@@ -94,11 +97,11 @@ class FourLevelPermUpdateModelMixin(mixins.UpdateModelMixin):
             'model_name': queryset.model._meta.model_name,
         }
         all_perm = '{app_label}.change_{model_name}'.format(**perm_kwargs)
-        base_perm = all_perm + '_base'
         normal_perm = all_perm + '_normal'
         advanced_perm = all_perm + '_advanced'
         user = request.user
 
+        serializer_data = self.get_serializer_data(request, *args, **kwargs)
         serializer_class = self.get_write_serializer_class()
         if not user.has_perm(all_perm, instance):
             serializer_class = self.get_advanced_write_serializer_class()
@@ -106,7 +109,7 @@ class FourLevelPermUpdateModelMixin(mixins.UpdateModelMixin):
                 serializer_class = self.get_normal_write_serializer_class()
                 if not user.has_perm(normal_perm, instance):
                     serializer_class = self.get_base_write_serializer_class()
-        serializer = serializer_class(instance, data=request.data, partial=partial,
+        serializer = serializer_class(instance, data=serializer_data, partial=partial,
                                       context=self.get_serializer_context())
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
@@ -164,6 +167,9 @@ class FourLevelPermGenericViewSet(viewsets.GenericViewSet):
         )
         return self.advanced_write_serializer_class
 
+    def get_serializer_data(self, request, *args, **kwargs):
+        return request.data
+
 
 class FourLevelPermModelViewSet(FourLevelPermCreateModelMixin,
                                 FourLevelPermListModelMixin,
@@ -172,6 +178,41 @@ class FourLevelPermModelViewSet(FourLevelPermCreateModelMixin,
                                 FourLevelPermDestroyModelMixin,
                                 FourLevelPermGenericViewSet):
     pass
+
+
+class FourLevelPermNestedModelViewSet(FourLevelPermModelViewSet):
+    parent_field_name = None
+    parent_query_lookup = None
+    parent_view_name = None
+
+    def get_parent_field_name(self):
+        assert self.parent_field_name is not None, (
+            "'%s' should either include a `parent_field_name` attribute, "
+            "or override the `get_parent_field_name()` method."
+            % self.__class__.__name__
+        )
+        return self.parent_field_name
+
+    def get_parent_query_lookup(self):
+        if not self.parent_query_lookup:
+            return 'parent_lookup_{0}'.format(self.get_parent_field_name())
+        return self.parent_query_lookup
+
+    def get_parent_view_name(self):
+        if not self.parent_view_name:
+            return 'api:{0}-detail'.format(self.get_parent_field_name())
+        return self.parent_view_name
+
+    def get_serializer_data(self, request, *args, **kwargs):
+        data = request.data.copy()
+        parent_query_lookup = self.get_parent_query_lookup()
+        parent_field_name = self.get_parent_field_name()
+        parent_pk = request.resolver_match.kwargs[parent_query_lookup]
+
+        data.pop(parent_field_name, None)
+        data[parent_field_name] = reverse(self.get_parent_view_name(), kwargs={'pk': parent_pk})
+
+        return data
 
 
 # -----------------------------------------------------------------------------
@@ -192,16 +233,22 @@ class StudentViewSet(FourLevelPermModelViewSet):
     advanced_write_serializer_class = write_serializer_class
 
 
-class StudentCoursesViewSet(NestedViewSetMixin, viewsets.ModelViewSet):
-
+# -----------------------------------------------------------------------------
+# StudentCourses ViewSet
+# -----------------------------------------------------------------------------
+class StudentCoursesViewSet(NestedViewSetMixin, FourLevelPermNestedModelViewSet):
     queryset = Takes.objects.all()
-    filter_backends = (filters.DjangoObjectPermissionsFilter, )
-    permission_classes = (StudentCoursesObjectPermissions, )
+    filter_backends = (FourLevelObjectPermissionsFilter, )
+    permission_classes = (FourLevelObjectPermissions, )
+    serializer_class = ReadStudentCoursesSerializer     # add this to ensure browsable api is okay
 
-    def get_serializer_class(self):
-        if self.request.user.is_staff:
-            return AdminStudentCoursesSerializer
-        return NormalStudentCoursesSerializer
+    read_serializer_class = ReadStudentCoursesSerializer
+    write_serializer_class = StudentCoursesSerializer
+    base_write_serializer_class = WriteStudentCoursesSerializer
+    normal_write_serializer_class = write_serializer_class
+    advanced_write_serializer_class = write_serializer_class
+
+    parent_field_name = 'student'
 
 
 # -----------------------------------------------------------------------------
