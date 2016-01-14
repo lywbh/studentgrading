@@ -24,6 +24,10 @@ def get_student_url(student):
     return reverse('api:student-detail', kwargs={'pk': student.pk})
 
 
+def get_instructor_url(instructor):
+    return reverse('api:instructor-detail', kwargs={'pk': instructor.pk})
+
+
 class APITestUtilsMixin(object):
     def force_authenticate_user(self, user):
         self.client.force_authenticate(user=user)
@@ -181,55 +185,6 @@ class StudentAPITests(APITestUtilsMixin, APITestCase):
             response = self.delete_student(stu)
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_api(self):
-        cls1 = factories.ClassFactory()
-        cls2 = factories.ClassFactory()
-        course1 = factories.CourseFactory()
-        course2 = factories.CourseFactory()
-        stu_cls1_cs1_list = []
-        stu_cls1_cs2_list = []
-        stu_cls2_cs2_list = []
-        stu_cls2_cs12_list = []
-        for i in range(10):
-            stu_cls1_cs1_list.append(factories.StudentTakesCourseFactory(s_class=cls1, courses__course=course1))
-            stu_cls2_cs2_list.append(factories.StudentTakesCourseFactory(s_class=cls2, courses__course=course2))
-            stu_cls1_cs2_list.append(factories.StudentTakesCourseFactory(s_class=cls1, courses__course=course2))
-            stu = factories.StudentTakesCourseFactory(s_class=cls2, courses__course=course2)
-            factories.TakesFactory(student=stu, course=course1)
-            stu_cls2_cs12_list.append(stu)
-        inst1 = factories.InstructorTeachesCourseFactory(courses__course=course1)
-        inst2 = factories.InstructorTeachesCourseFactory(courses__course=course2)
-        inst3 = factories.InstructorTeachesCourseFactory(courses__course=course1)
-        factories.TeachesFactory(instructor=inst3, course=course2)
-
-        # test cls1 cs1 stu
-        for stu in stu_cls1_cs1_list:
-            self.force_authenticate_user(stu.user)
-            response = self.get_student_list()
-            self.assertEqual(len(response.data), 20 + 10)
-            self.force_authenticate_user(None)
-
-        # test cls1 cs2 stu
-        for stu in stu_cls1_cs2_list:
-            self.force_authenticate_user(stu.user)
-            response = self.get_student_list()
-            self.assertEqual(len(response.data), 20 + 20)
-            self.force_authenticate_user(None)
-
-        # test cls2 cs2 stu
-        for stu in stu_cls2_cs2_list:
-            self.force_authenticate_user(stu.user)
-            response = self.get_student_list()
-            self.assertEqual(len(response.data), 20 + 10)
-            self.force_authenticate_user(None)
-
-        # test cls2 cs2 stu
-        for stu in stu_cls2_cs12_list:
-            self.force_authenticate_user(stu.user)
-            response = self.get_student_list()
-            self.assertEqual(len(response.data), 20 + 20)
-            self.force_authenticate_user(None)
-
 
 class InstructorAPITests(APITestUtilsMixin, APITestCase):
 
@@ -253,15 +208,15 @@ class InstructorAPITests(APITestUtilsMixin, APITestCase):
 
     def is_itself_fields(self, inst_dict):
         return (set(inst_dict.keys()) ==
-                {'url', 'id', 'name', 'sex', 'inst_id', 'user', })
+                {'url', 'id', 'name', 'sex', 'inst_id', 'user', 'courses'})
 
     def is_other_inst_fields(self, inst_dict):
         return (set(inst_dict.keys()) ==
-                {'url', 'id', 'name', 'sex', 'inst_id', })
+                {'url', 'id', 'name', 'sex', 'inst_id', 'courses'})
 
     def is_course_stu_fields(self, inst_dict):
         return (set(inst_dict.keys()) ==
-                {'url', 'id', 'name', 'sex', })
+                {'url', 'id', 'name', 'sex', 'courses'})
 
     def test_access_normal_instructor(self):
         inst1 = factories.InstructorFactory()
@@ -430,6 +385,16 @@ class StudentCoursesAPITests(APITestUtilsMixin, APITestCase):
 
         inst1 = factories.InstructorTeachesCourseFactory(courses__course=course1)
         self.force_authenticate_user(inst1.user)
+
+        # can POST to its courses
+        self.assertNotIn(stu1, course1.students.all())
+        self.assertIn(inst1, course1.instructors.all())
+        response = self.post_student_course(stu1, dict(
+            course=get_course_url(course1),
+        ))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIn(stu1, course1.students.all())
+
         # can GET, PATCH, PUT, DELETE its course's takes
         for takes in Takes.objects.filter(course=course1):
             response = self.put_student_course(takes.student, takes, dict(
@@ -462,4 +427,536 @@ class StudentCoursesAPITests(APITestUtilsMixin, APITestCase):
             self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
             response = self.delete_student_course(takes.student, takes)
             self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_inst_add_stu_to_other_courses(self):
+        """
+        Test when an instructor adds a student to a course not given by itself.
+        """
+        course1 = factories.CourseFactory()
+        course2 = factories.CourseFactory()
+        inst1 = factories.InstructorTeachesCourseFactory(courses__course=course1)
+        stu1 = factories.StudentFactory()
+
+        self.force_authenticate_user(inst1.user)
+        response = self.post_student_course(stu1, dict(
+            course=get_course_url(course2),
+        ))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class InstructorCoursesAPITests(APITestUtilsMixin, APITestCase):
+
+    def get_instructor_course_list(self, inst):
+        return self.client.get(reverse('api:instructor-course-list', kwargs={'parent_lookup_instructor': inst.pk}))
+
+    def get_instructor_course_detail(self, inst, teaches):
+        return self.client.get(reverse('api:instructor-course-detail',
+                                       kwargs={'parent_lookup_instructor': inst.pk, 'pk': teaches.pk}))
+
+    def post_instructor_course(self, inst, teaches_dict):
+        return self.client.post(reverse('api:instructor-course-list', kwargs={'parent_lookup_instructor': inst.pk}),
+                                teaches_dict)
+
+    def put_instructor_course(self, inst, teaches, teaches_dict):
+        return self.client.put(
+            reverse('api:instructor-course-detail',
+                    kwargs={'parent_lookup_instructor': inst.pk, 'pk': teaches.pk}),
+            teaches_dict
+        )
+
+    def patch_instructor_course(self, inst, teaches, teaches_dict):
+        return self.client.patch(
+            reverse('api:instructor-course-detail',
+                    kwargs={'parent_lookup_instructor': inst.pk, 'pk': teaches.pk}),
+            teaches_dict
+        )
+
+    def delete_instructor_course(self, inst, teaches):
+        return self.client.delete(reverse('api:instructor-course-detail',
+                                          kwargs={'parent_lookup_instructor': inst.pk, 'pk': teaches.pk}))
+
+    def is_view_all_fields(self, teaches_dict):
+        return (set(teaches_dict.keys()) ==
+                {'url', 'id', 'instructor', 'course'})
+
+    def is_itself_fields(self, teaches_dict):
+        return self.is_view_all_fields(teaches_dict)
+
+    def is_course_stu_fields(self, teaches_dict):
+        return self.is_view_all_fields(teaches_dict)
+
+    def is_other_inst_fields(self, teaches_dict):
+        return self.is_view_all_fields(teaches_dict)
+
+    def test_student_access_inst_course(self):
+        stu1 = factories.StudentFactory()
+        course1 = factories.CourseFactory()
+        inst1 = factories.InstructorFactory()
+        teaches1 = factories.TeachesFactory(course=course1, instructor=inst1)
+        inst2 = factories.InstructorFactory()
+        teaches2 = factories.TeachesFactory(course=course1, instructor=inst2)
+
+        self.force_authenticate_user(stu1.user)
+        # cannot GET, POST, PUT, PATCH, DELETE before taking course
+        response = self.get_instructor_course_list(inst1)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+        response = self.post_instructor_course(inst1, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.put_instructor_course(inst1, teaches1, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.patch_instructor_course(inst1, teaches1, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.delete_instructor_course(inst1, teaches1)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        takes = factories.TakesFactory(student=stu1, course=course1)
+
+        # can GET after
+        response = self.get_instructor_course_list(inst1)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        response = self.get_instructor_course_detail(inst1, teaches1)
+        self.assertTrue(self.is_course_stu_fields(response.data))
+        # cannot POST, PUT, PATCH, DELETE after
+        response = self.post_instructor_course(inst1, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.put_instructor_course(inst1, teaches1, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.patch_instructor_course(inst1, teaches1, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.delete_instructor_course(inst1, teaches1)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_inst_access_inst_course(self):
+        course1 = factories.CourseFactory()
+        inst1 = factories.InstructorFactory()
+        inst2 = factories.InstructorFactory()
+        teaches1 = factories.TeachesFactory(course=course1, instructor=inst1)
+
+        self.force_authenticate_user(inst2.user)
+        # cannot GET, POST, PUT, PATCH, DELETE other inst's teaches
+        response = self.get_instructor_course_list(inst1)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+        response = self.get_instructor_course_detail(inst1, teaches1)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        # can GET, POST, PATCH, DELETE after taking same course
+        factories.TeachesFactory(course=course1, instructor=inst2)
+        response = self.get_instructor_course_list(inst1)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        response = self.get_instructor_course_detail(inst1, teaches1)
+        self.assertTrue(self.is_other_inst_fields(response.data))
+
+    def test_add_course_to_other_inst(self):
+        course1 = factories.CourseFactory()
+        course2 = factories.CourseFactory()
+        inst1 = factories.InstructorFactory()
+        inst2 = factories.InstructorFactory()
+        factories.TeachesFactory(course=course1, instructor=inst1)
+
+        self.force_authenticate_user(inst1.user)
+
+        # can add course given by itself
+        response = self.post_instructor_course(inst2, dict(
+            course=get_course_url(course1),
+        ))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        # cannot add course not given by itself
+        response = self.post_instructor_course(inst2, dict(
+            course=get_course_url(course2),
+        ))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_add_course_to_inst_itself(self):
+        course1 = factories.CourseFactory()
+        inst1 = factories.InstructorFactory()
+
+        self.force_authenticate_user(inst1.user)
+
+        # can add course to itself
+        response = self.post_instructor_course(inst1, dict(
+            course=get_course_url(course1),
+        ))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        # again, error
+        response = self.post_instructor_course(inst1, dict(
+            course=get_course_url(course1),
+        ))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class CourseAITests(APITestUtilsMixin, APITestCase):
+
+    def get_course_list(self):
+        return self.client.get(reverse('api:course-list'))
+
+    def get_course_detail(self, course):
+        return self.client.get(reverse('api:course-detail', kwargs={'pk': course.pk}))
+
+    def post_course(self, course_dict):
+        return self.client.post(reverse('api:course-list'), course_dict)
+
+    def put_course(self, course, course_dict):
+        return self.client.put(reverse('api:course-detail', kwargs={'pk': course.pk}), course_dict)
+
+    def patch_course(self, course, course_dict):
+        return self.client.patch(reverse('api:course-detail', kwargs={'pk': course.pk}), course_dict)
+
+    def delete_course(self, course):
+        return self.client.delete(reverse('api:course-detail', kwargs={'pk': course.pk}))
+
+    def is_course_inst_fields(self, course_dict):
+        return (set(course_dict.keys()) ==
+                {'url', 'id', 'title', 'year', 'semester', 'description', 'min_group_size',
+                 'max_group_size', 'instructors'})
+
+    def is_normal_inst_fields(self, course_dict):
+        return (set(course_dict.keys()) ==
+                {'url', 'id', 'title', 'year', 'semester', 'description', 'instructors'})
+
+    def is_course_stu_fields(self, course_dict):
+        return self.is_course_inst_fields(course_dict)
+
+    def is_normal_stu_fields(self, course_dict):
+        return (set(course_dict.keys()) ==
+                {'url', 'id', 'title', 'year', 'semester', 'description', })
+
+    def test_get(self):
+        stu1 = factories.StudentFactory()
+        inst1 = factories.InstructorFactory()
+        course1 = factories.CourseFactory()
+
+        # base view
+        self.force_authenticate_user(stu1.user)
+        response = self.get_course_list()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        response = self.get_course_detail(course1)
+        self.assertTrue(self.is_normal_stu_fields(response.data))
+
+        self.force_authenticate_user(inst1.user)
+        response = self.get_course_list()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        response = self.get_course_detail(course1)
+        self.assertTrue(self.is_normal_inst_fields(response.data))
+
+        # advanced view
+        takes1 = factories.TakesFactory(student=stu1, course=course1)
+        teaches1 = factories.TeachesFactory(instructor=inst1, course=course1)
+
+        self.force_authenticate_user(stu1.user)
+        response = self.get_course_list()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        response = self.get_course_detail(course1)
+        self.assertTrue(self.is_course_stu_fields(response.data))
+
+        self.force_authenticate_user(inst1.user)
+        response = self.get_course_list()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        response = self.get_course_detail(course1)
+        self.assertTrue(self.is_course_inst_fields(response.data))
+
+        # restore to base view
+        takes1.delete()
+        teaches1.delete()
+        self.force_authenticate_user(stu1.user)
+        response = self.get_course_list()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        response = self.get_course_detail(course1)
+        self.assertTrue(self.is_normal_stu_fields(response.data))
+
+        self.force_authenticate_user(inst1.user)
+        response = self.get_course_list()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        response = self.get_course_detail(course1)
+        self.assertTrue(self.is_normal_inst_fields(response.data))
+
+    def test_post(self):
+        stu1 = factories.StudentFactory()
+        inst1 = factories.InstructorFactory()
+
+        # student cannot POST
+        self.force_authenticate_user(stu1.user)
+        response = self.post_course({})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # instructor can POST
+        self.force_authenticate_user(inst1.user)
+        response = self.post_course(dict(
+            title='foobar', year='2005', semester='SPG', description='',
+            instructors=[get_instructor_url(inst1)],
+        ))
+        self.assertEqual(inst1.courses.count(), 1)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # POST without instructors
+        response = self.post_course(dict(
+            title='foobar', year='2006', semester='SPG', description='',
+        ))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Course.objects.count(), 2)
+        self.assertEqual(inst1.courses.count(), 1)
+
+        # test required field
+        response = self.post_course(dict(
+            title='foobar',
+        ))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response = self.post_course(dict(
+            title='foobar', year='2007'
+        ))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response = self.post_course(dict(
+            title='foobar', year='2007', semester='SPG',
+        ))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # test semester
+        response = self.post_course(dict(
+            title='foobar', year='2007', semester='Spring', description='',
+        ))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response = self.post_course(dict(
+            title='foobar', year='2007', semester='AUT', description='',
+        ))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_change(self):
+        stu1 = factories.StudentFactory()
+        inst1 = factories.InstructorFactory()
+        course1 = factories.CourseFactory()
+
+        # student cannot PUT, PATCH
+        self.force_authenticate_user(stu1.user)
+        response = self.put_course(course1, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.patch_course(course1, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # inst not giving the course cannot either
+        self.force_authenticate_user(inst1.user)
+        response = self.put_course(course1, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.patch_course(course1, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # inst can change after taking the course
+        factories.TeachesFactory(instructor=inst1, course=course1)
+        response = self.put_course(course1, dict(
+            title='foobar', year='2007', semester='Spring',
+        ))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        response = self.patch_course(course1, dict(
+            title='barfoo',
+        ))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_delete(self):
+        stu1 = factories.StudentFactory()
+        inst1 = factories.InstructorFactory()
+        course1 = factories.CourseFactory()
+
+        # student cannot DELETE
+        self.force_authenticate_user(stu1.user)
+        response = self.delete_course(course1)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # inst not giving cannot DELETE
+        self.force_authenticate_user(inst1.user)
+        response = self.delete_course(course1)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # inst can DELETE after taking the course
+        factories.TeachesFactory(instructor=inst1, course=course1)
+        response = self.delete_course(course1)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+
+class CourseInstructorsAPITests(APITestUtilsMixin, APITestCase):
+
+    def get_course_instructor_list(self, course):
+        return self.client.get(reverse('api:course-instructor-list', kwargs={'parent_lookup_course': course.pk}))
+
+    def get_course_instructor_detail(self, course, teaches):
+        return self.client.get(reverse('api:course-instructor-detail',
+                                       kwargs={'parent_lookup_course': course.pk, 'pk': teaches.pk}))
+
+    def post_course_instructor(self, course, teaches_dict):
+        return self.client.post(reverse('api:course-instructor-list', kwargs={'parent_lookup_course': course.pk}),
+                                teaches_dict)
+
+    def put_course_instructor(self, course, teaches, teaches_dict):
+        return self.client.put(
+            reverse('api:course-instructor-detail',
+                    kwargs={'parent_lookup_course': course.pk, 'pk': teaches.pk}),
+            teaches_dict
+        )
+
+    def patch_course_instructor(self, course, teaches, teaches_dict):
+        return self.client.patch(
+            reverse('api:course-instructor-detail',
+                    kwargs={'parent_lookup_course': course.pk, 'pk': teaches.pk}),
+            teaches_dict
+        )
+
+    def delete_course_instructor(self, course, teaches):
+        return self.client.delete(reverse('api:course-instructor-detail',
+                                          kwargs={'parent_lookup_course': course.pk, 'pk': teaches.pk}))
+
+    def is_view_all_fields(self, teaches_dict):
+        return (set(teaches_dict.keys()) ==
+                {'url', 'id', 'instructor', 'course'})
+
+    def is_course_inst_fields(self, teaches_dict):
+        return self.is_view_all_fields(teaches_dict)
+
+    def is_course_stu_fields(self, teaches_dict):
+        return self.is_view_all_fields(teaches_dict)
+
+    def test_get(self):
+        stu1 = factories.StudentFactory()
+        inst1 = factories.InstructorFactory()
+        inst2 = factories.InstructorFactory()
+        course1 = factories.CourseFactory()
+        teaches1 = factories.TeachesFactory(instructor=inst1, course=course1)
+
+        # student not taking the course cannot GET teaches
+        self.force_authenticate_user(stu1.user)
+        response = self.get_course_instructor_list(course1)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+        response = self.get_course_instructor_detail(course1, teaches1)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        # student can GET after taking
+        takes1 = factories.TakesFactory(student=stu1, course=course1)
+        response = self.get_course_instructor_detail(course1, teaches1)
+        self.assertTrue(self.is_course_stu_fields(response.data))
+
+        # instructor can GET its own course teaches
+        response = self.get_course_instructor_list(course1)
+        self.assertEqual(len(response.data), 1)
+
+        response = self.get_course_instructor_detail(course1, teaches1)
+        self.assertTrue(self.is_course_inst_fields(response.data))
+
+        # course instructor can GET other course inst's teaches
+        teaches2 = factories.TeachesFactory(instructor=inst2, course=course1)
+        response = self.get_course_instructor_list(course1)
+        self.assertEqual(len(response.data), 2)
+
+        response = self.get_course_instructor_detail(course1, teaches2)
+        self.assertTrue(self.is_course_inst_fields(response.data))
+
+    def test_post(self):
+        stu1 = factories.StudentFactory()
+        inst1 = factories.InstructorFactory()
+        inst2 = factories.InstructorFactory()
+        course1 = factories.CourseFactory()
+        teaches1 = factories.TeachesFactory(instructor=inst1, course=course1)
+
+        # student cannot POST
+        self.force_authenticate_user(stu1.user)
+        response = self.post_course_instructor(course1, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # instructor can POST to its own course
+        self.force_authenticate_user(inst1.user)
+        response = self.post_course_instructor(course1, dict(
+            instructor=get_instructor_url(inst2),
+        ))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(course1.is_given_by(inst2))
+
+        # can POST itself to other course
+        course2 = factories.CourseFactory()
+        self.post_course_instructor(course2, dict(
+            instructor=get_instructor_url(inst1)
+        ))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(course2.is_given_by(inst1))
+
+        # cannot POST other inst to other course
+        self.force_authenticate_user(inst1.user)
+        course3 = factories.CourseFactory()
+        response = self.post_course_instructor(course3, dict(
+            instructor=get_instructor_url(inst2)
+        ))
+        self.assertFalse(course3.is_given_by(inst2))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_change(self):
+        stu1 = factories.StudentFactory()
+        inst1 = factories.InstructorFactory()
+        inst2 = factories.InstructorFactory()
+        course1 = factories.CourseFactory()
+        teaches1 = factories.TeachesFactory(instructor=inst1, course=course1)
+
+        # student cannot PUT or PATCH
+        self.force_authenticate_user(stu1.user)
+        response = self.put_course_instructor(course1, teaches1, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.patch_course_instructor(course1, teaches1, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # course instructor cannot PUT or PATCH
+        self.force_authenticate_user(inst1.user)
+        response = self.put_course_instructor(course1, teaches1, dict(
+            instructor=get_instructor_url(inst2)
+        ))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.patch_course_instructor(course1, teaches1, dict(
+            instructor=get_instructor_url(inst2)
+        ))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # normal instructor cannot
+        self.force_authenticate_user(inst2.user)
+        response = self.put_course_instructor(course1, teaches1, dict(
+            instructor=get_instructor_url(inst2)
+        ))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.patch_course_instructor(course1, teaches1, dict(
+            instructor=get_instructor_url(inst2)
+        ))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_delete(self):
+        stu1 = factories.StudentFactory()
+        inst1 = factories.InstructorFactory()
+        inst2 = factories.InstructorFactory()
+        course1 = factories.CourseFactory()
+        teaches1 = factories.TeachesFactory(instructor=inst1, course=course1)
+
+        # student cannot
+        self.force_authenticate_user(stu1.user)
+        response = self.delete_course_instructor(course1, teaches1)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # normal inst cannot
+        self.force_authenticate_user(inst2.user)
+        response = self.delete_course_instructor(course1, teaches1)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        # course inst can DELETE itself
+        self.force_authenticate_user(inst1.user)
+        response = self.delete_course_instructor(course1, teaches1)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 

@@ -6,7 +6,6 @@ from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
-from django.utils.translation import ugettext_lazy as _
 from django.utils import timezone
 from django.db.models import Q
 from django.dispatch import receiver
@@ -277,7 +276,7 @@ class ContactInfo(models.Model):
 
 class Class(models.Model):
     class_id = models.CharField(
-        verbose_name=_("Class's id"),
+        verbose_name="Class's id",
         unique=True,
         max_length=255,
         validators=[validate_all_digits_in_string],
@@ -404,20 +403,42 @@ class Course(models.Model):
             ~(q_stu_takes & q_stu_in_group) & q_stu_takes
         )
 
+    def is_given_by(self, instructor):
+        return self.instructors.filter(pk=instructor.pk).exists()
+
     # Object permission related methods
     # -------------------------------------------------------------------------
     # Object permission handler for users
     # Student
+    def assign_base_perms_for_student(self, user):
+        assign_four_level_perm('core.view_course_normal', user, self)
+
+    def remove_base_perms_for_student(self, user):
+        remove_perm('core.view_course_normal', user, self)
+
+    def has_base_perms_for_student(self, user):
+        return has_four_level_perm('core.view_course_normal', user, self)
+
     def assign_perms_for_course_stu(self, user):
         assign_perm('core.view_course', user, self)
 
     def remove_perms_for_course_stu(self, user):
         remove_perm('core.view_course', user, self)
+        self.assign_base_perms_for_student(user)
 
     def has_perms_for_course_stu(self, user):
         return user.has_perm('core.view_course', self)
 
     # Instructor
+    def assign_base_perms_for_instructor(self, user):
+        assign_four_level_perm('core.view_course_advanced', user, self)
+
+    def remove_base_perms_for_instructor(self, user):
+        remove_perm('core.view_course_advanced', user, self)
+
+    def has_base_perms_for_instructor(self, user):
+        return has_four_level_perm('core.view_course_advanced', user, self)
+
     def assign_perms_for_course_inst(self, user):
         assign_perm('core.view_course', user, self)
         assign_four_level_perm('core.change_course_base', user, self)
@@ -427,11 +448,39 @@ class Course(models.Model):
         remove_perm('core.view_course', user, self)
         remove_perm('core.change_course_base', user, self)
         remove_perm('core.delete_course', user, self)
+        self.assign_base_perms_for_instructor(user)
 
     def has_perms_for_course_inst(self, user):
         return (user.has_perm('core.view_course', self) and
                 user.has_perm('core.change_course_base', self) and
                 user.has_perm('core.delete_course', self))
+
+
+@receiver(post_save, sender=Course)
+def course_assign_perms(sender, **kwargs):
+    course, created = kwargs['instance'], kwargs['created']
+
+    if created:
+        # assign base perms for student
+        for student in Student.objects.all():
+            course.assign_base_perms_for_student(student.user)
+
+        # assign base perms for instructor
+        for instructor in Instructor.objects.all():
+            course.assign_base_perms_for_instructor(instructor.user)
+
+
+@receiver(post_delete, sender=Course)
+def course_remove_perms(sender, **kwargs):
+    course = kwargs['instance']
+
+    # remove base perms for student
+    for student in Student.objects.all():
+        course.remove_base_perms_for_student(student.user)
+
+    # remove base perms for instructor
+    for instructor in Instructor.objects.all():
+        course.remove_base_perms_for_instructor(instructor.user)
 
 
 class StudentQuerySet(models.QuerySet):
@@ -462,12 +511,12 @@ class StudentManager(models.Manager):
 
 class Student(ModelDiffMixin, UserProfile):
     s_id = models.CharField(
-        verbose_name=_("student ID"),
+        verbose_name="student ID",
         unique=True,
         max_length=255,
         validators=[validate_all_digits_in_string],
     )
-    s_class = models.ForeignKey(Class, verbose_name=_("class"),
+    s_class = models.ForeignKey(Class, verbose_name="class",
                                 related_name='students')
     courses = models.ManyToManyField(
         Course,
@@ -580,15 +629,6 @@ class Student(ModelDiffMixin, UserProfile):
     # Object permission handlers for other users
     # ------------------------------------
     # For students
-    def assign_base_perms_for_student(self, user):
-        assign_perm('core.student_non', user, self)
-
-    def remove_base_perms_for_student(self, user):
-        remove_perm('core.student_non', user, self)
-
-    def has_base_perms_for_student(self, user):
-        return user.has_perm('core.student_non', self)
-
     def assign_perms_for_course_stu(self, user):
         """
         Assign permissions for a student taking same course as student
@@ -757,15 +797,15 @@ def student_assign_perms(sender, **kwargs):
         # object perms
         # 1. student itself
         assign_perm('core.view_student', user, student)
+        # 2. courses
+        for course in Course.objects.all():
+            course.assign_base_perms_for_student(student.user)
 
         # other students
-        for stu in Student.objects.exclude(pk=student.pk):
-            stu.assign_base_perms_for_student(user)
-            student.assign_base_perms_for_student(stu.user)
+        # None
 
         # other instructors
         for inst in Instructor.objects.all():
-            inst.assign_base_perms_for_student(user)
             student.assign_base_perms_for_instructor(inst.user)
 
         # foreign relationship perms
@@ -804,12 +844,10 @@ def student_remove_perms(sender, **kwargs):
 
     remove_perm('core.view_student', user, student)
 
-    for stu in Student.objects.exclude(pk=student.pk):
-        stu.remove_base_perms_for_student(user)
-        student.remove_base_perms_for_student(stu.user)
+    for course in Course.objects.all():
+        course.remove_base_perms_for_student(student.user)
 
     for inst in Instructor.objects.all():
-        inst.remove_base_perms_for_student(user)
         student.remove_base_perms_for_instructor(inst.user)
 
     # remove all view perms from classmates
@@ -835,7 +873,7 @@ class InstructorManager(models.Manager):
 class Instructor(UserProfile):
 
     inst_id = models.CharField(
-        verbose_name=_("instructor's ID"),
+        verbose_name="instructor's ID",
         unique=True,
         max_length=255,
         validators=[validate_all_digits_in_string],
@@ -857,7 +895,6 @@ class Instructor(UserProfile):
             ('change_instructor_base', "Can change instructor, base level"),
             ('change_instructor_normal', "Can change instructor, normal level"),
             ('change_instructor_advanced', "Can change instructor, advanced level"),
-            ('instructor_non', 'Redundant permission'),
         )
 
     def __str__(self):
@@ -934,20 +971,14 @@ class Instructor(UserProfile):
         """
         return self.courses.filter(students=student).exists()
 
+    def is_giving(self, course):
+        return self.courses.filter(pk=course.pk).exists()
+
     # Object permission related methods
     # -------------------------------------------------------------------------
     # Object permission handlers for other users
     # ------------------------------------
     # For students
-    def assign_base_perms_for_student(self, user):
-        assign_perm('core.instructor_non', user, self)
-
-    def remove_base_perms_for_student(self, user):
-        remove_perm('core.instructor_non', user, self)
-
-    def has_base_perms_for_student(self, user):
-        return user.has_perm('core.instructor_non', self)
-
     def assign_perms_for_course_stu(self, user):
         """
         Assign permissions for student taking instructor's course
@@ -966,7 +997,6 @@ class Instructor(UserProfile):
         """
         if not self.is_giving_course_to(user.student):
             remove_perm('core.view_instructor_base', user, self)
-        self.assign_base_perms_for_student(user)
 
     def has_perms_for_course_stu(self, user):
         """
@@ -985,7 +1015,7 @@ class Instructor(UserProfile):
 
         :param user: User instance of instructor
         """
-        assign_four_level_perm('view_instructor_normal', user, self)
+        assign_four_level_perm('core.view_instructor_normal', user, self)
 
     def remove_base_perms_for_instructor(self, user):
         """
@@ -1001,6 +1031,15 @@ class Instructor(UserProfile):
 
         :param user: User instance of an instructor
         """
+        return has_four_level_perm('core.view_instructor_normal', user, self)
+
+    def assign_perms_for_course_inst(self, user):
+        assign_four_level_perm('core.view_instructor_normal', user, self)
+
+    def remove_perms_for_course_inst(self, user):
+        remove_perm('core.view_instructor_normal', user, self)
+
+    def has_perms_for_course_inst(self, user):
         return has_four_level_perm('core.view_instructor_normal', user, self)
 
 
@@ -1036,6 +1075,9 @@ def instructor_assign_perms(sender, **kwargs):
         # object perms
         # 1. instructor itself
         assign_perm('core.view_instructor', user, instructor)
+        # 2. courses
+        for course in Course.objects.all():
+            course.assign_base_perms_for_instructor(user)
 
         # other instructors
         for inst in Instructor.objects.exclude(pk=instructor.pk):
@@ -1045,7 +1087,6 @@ def instructor_assign_perms(sender, **kwargs):
         # other students
         for stu in Student.objects.all():
             stu.assign_base_perms_for_instructor(user)
-            instructor.assign_base_perms_for_student(stu.user)
 
 
 @receiver(post_delete, sender=Instructor)
@@ -1069,13 +1110,15 @@ def instructor_remove_perms(sender, **kwargs):
 
     remove_perm('core.view_instructor', user, instructor)
 
+    for course in Course.objects.all():
+        course.remove_base_perms_for_instructor(user)
+
     for inst in Instructor.objects.exclude(pk=instructor.pk):
         inst.remove_base_perms_for_instructor(user)
         instructor.remove_base_perms_for_instructor(inst.user)
 
     for stu in Student.objects.all():
         stu.remove_base_perms_for_instructor(user)
-        instructor.remove_base_perms_for_student(stu.user)
 
 
 class InstructorContactInfo(ContactInfo):
@@ -1132,6 +1175,15 @@ class Teaches(ModelDiffMixin, models.Model):
         return (user.has_perm('core.view_teaches', self) and
                 user.has_perm('core.delete_teaches', self))
 
+    def assign_perms_for_other_course_inst(self, user):
+        assign_perm('core.view_teaches', user, self)
+
+    def remove_perms_for_other_course_inst(self, user):
+        remove_perm('core.view_teaches', user, self)
+
+    def has_perms_for_other_course_inst(self, user):
+        return user.has_perm('core.view_teaches', self)
+
     # Object permission handlers for relationship
     # ------------------------------------
     # teaches-instructor relationship
@@ -1139,6 +1191,7 @@ class Teaches(ModelDiffMixin, models.Model):
         inst = self.instructor
         course = self.course
         takes_list = course.takes.all()
+        teaches_list = course.teaches.exclude(pk=self.pk)
 
         # instructor perms on teaches
         self.assign_perms_for_course_inst(inst.user)
@@ -1153,10 +1206,22 @@ class Teaches(ModelDiffMixin, models.Model):
             student.assign_perms_for_course_inst(inst.user)
             inst.assign_perms_for_course_stu(student.user)
 
+        # instructor perms on other course insts and their teaches,
+        # and vice versa
+        for teaches in teaches_list:
+            course_inst = teaches.instructor
+
+            teaches.assign_perms_for_other_course_inst(inst.user)
+            self.assign_perms_for_other_course_inst(course_inst.user)
+
+            course_inst.assign_perms_for_course_inst(inst.user)
+            inst.assign_perms_for_course_inst(course_inst.user)
+
     def remove_instructor_perms(self, instructor):
         inst = instructor
         course = self.course
         takes_list = course.takes.all()
+        teaches_list = course.teaches.exclude(pk=self.pk)
 
         # instructor perms on teaches
         self.remove_perms_for_course_inst(inst.user)
@@ -1170,6 +1235,17 @@ class Teaches(ModelDiffMixin, models.Model):
             # instructor perms on student, and vice versa
             student.remove_perms_for_course_inst(inst.user)
             inst.remove_perms_for_course_stu(student.user)
+
+        # instructor perms on other course insts and their teaches,
+        # and vice versa
+        for teaches in teaches_list:
+            course_inst = teaches.instructor
+
+            teaches.remove_perms_for_other_course_inst(inst.user)
+            self.remove_perms_for_other_course_inst(course_inst.user)
+
+            course_inst.remove_perms_for_course_inst(inst.user)
+            inst.remove_perms_for_course_inst(course_inst.user)
 
     # teaches-course relationship
     def assign_course_perms(self):
@@ -1239,13 +1315,13 @@ def teaches_remove_perms(instance, **kwargs):
 class Group(models.Model):
 
     number = models.CharField(
-        verbose_name=_('group number'),
+        verbose_name='group number',
         max_length=10,
         default='',
         blank=True,
     )
     name = models.CharField(
-        verbose_name=_('group name'),
+        verbose_name='group name',
         max_length=255,
         default='',
         blank=True,
@@ -1427,11 +1503,13 @@ class Takes(ModelDiffMixin, models.Model):
         stu_user = self.student.user
         course = self.course
         teaches_list = self.course.teaches.all()
+        takes_list = course.takes.exclude(pk=self.pk)
 
         # student perms on takes
         self.assign_perms_for_course_stu(stu_user)
         # student perms on course
         course.assign_perms_for_course_stu(stu_user)
+
         for teaches in teaches_list:
             inst = teaches.instructor
             # student perms on teaches
@@ -1440,6 +1518,14 @@ class Takes(ModelDiffMixin, models.Model):
             student.assign_perms_for_course_inst(inst.user)
             # instructor perms on student
             inst.assign_perms_for_course_stu(stu_user)
+
+        # student perms on other course students and their takes,
+        # and vice versa
+        for takes in takes_list:
+            course_stu = takes.student
+
+            student.assign_perms_for_course_stu(course_stu.user)
+            course_stu.assign_perms_for_course_stu(student.user)
 
     def remove_student_perms(self, student):
         """
@@ -1450,6 +1536,7 @@ class Takes(ModelDiffMixin, models.Model):
         stu_user = student.user
         course = self.course
         teaches_list = course.teaches.all()
+        takes_list = course.takes.exclude(pk=self.pk)
 
         # student perms on takes
         self.remove_perms_for_course_stu(stu_user)
@@ -1464,6 +1551,14 @@ class Takes(ModelDiffMixin, models.Model):
             inst = teaches.instructor
             student.remove_perms_for_course_inst(inst.user)
             inst.remove_perms_for_course_stu(stu_user)
+
+        # student perms on other course students and their takes,
+        # and vice versa
+        for takes in takes_list:
+            course_stu = takes.student
+
+            student.remove_perms_for_course_stu(course_stu.user)
+            course_stu.remove_perms_for_course_stu(student.user)
 
     # takes-course relationship
     def assign_course_perms(self):

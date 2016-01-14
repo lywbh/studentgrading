@@ -1,18 +1,23 @@
 # -*- coding: utf-8 -*-
+from django.test import RequestFactory
+from django.contrib.auth import get_user_model
+
 from rest_framework.reverse import reverse
-from rest_framework.test import APITestCase
-from rest_framework.test import APIRequestFactory
+from rest_framework.test import APITestCase, APIRequestFactory, force_authenticate
 
 from .factories import (
     StudentFactory, ClassFactory, UserFactory, CourseFactory,
 )
 from ..serializers import (
-    StudentSerializer, StudentCoursesSerializer, WriteStudentCoursesSerializer,
+    StudentSerializer, StudentCoursesSerializer, BaseWriteStudentCoursesSerializer,
+    ReadCourseSerializer,
 )
 from ..models import (
     Student,
 )
 from . import factories
+
+User = get_user_model()
 
 
 def get_course_url(course):
@@ -75,3 +80,19 @@ class StudentCoursesTests(APITestCase):
         takes1 = serializer.save()
         self.assertEqual(takes1.grade, 90)
 
+
+class CourseTests(APITestCase):
+
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.request = self.factory.get('/')
+        self.admin_user = User.objects.create_superuser(username='foobar', password='bar')
+
+    def test_read(self):
+        stu1 = factories.StudentFactory()
+        course1 = factories.CourseFactory()
+
+        self.request.user = self.admin_user
+        serializer = ReadCourseSerializer(course1, context=dict(request=self.request))
+
+        # print(repr(serializer))

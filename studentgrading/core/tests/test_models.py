@@ -299,12 +299,7 @@ class StudentPermsTests(TestCase):
         # test obj perms
         self.assertTrue(stu.user.has_perm('core.view_student', stu))
 
-        for s in Student.objects.exclude(pk=stu.pk):
-            self.assertTrue(s.has_base_perms_for_student(stu.user))
-            self.assertTrue(stu.has_base_perms_for_student(s.user))
-
         for inst in Instructor.objects.all():
-            self.assertTrue(inst.has_base_perms_for_student(stu.user))
             self.assertTrue(stu.has_base_perms_for_instructor(inst.user))
 
         stu.delete()
@@ -318,12 +313,7 @@ class StudentPermsTests(TestCase):
 
         self.assertFalse(user.has_perm('core.view_student', stu))
 
-        for s in Student.objects.exclude(pk=stu.pk):
-            self.assertFalse(s.has_base_perms_for_student(stu.user))
-            self.assertFalse(stu.has_base_perms_for_student(s.user))
-
         for inst in Instructor.objects.all():
-            self.assertFalse(inst.has_base_perms_for_student(stu.user))
             self.assertFalse(stu.has_base_perms_for_instructor(inst.user))
 
     def test_class_perms(self):
@@ -543,6 +533,42 @@ class CourseMethodTests(TestCase):
         )
 
 
+class CoursePermsTests(TestCase):
+
+    def test_base_perms(self):
+        stu1 = factories.StudentFactory()
+        inst1 = factories.InstructorFactory()
+        course1 = factories.CourseFactory()
+
+        # test base perms
+        self.assertTrue(course1.has_base_perms_for_instructor(inst1.user))
+        self.assertTrue(course1.has_base_perms_for_student(stu1.user))
+
+        # test inst perms after perm restored
+        takes1 = factories.TakesFactory(student=stu1, course=course1)
+        self.assertTrue(course1.has_base_perms_for_student(stu1.user))
+        self.assertTrue(course1.has_perms_for_course_stu(stu1.user))
+        takes1.delete()
+        self.assertTrue(course1.has_base_perms_for_student(stu1.user))
+        self.assertFalse(course1.has_perms_for_course_stu(stu1.user))
+
+        teaches1 = factories.TeachesFactory(instructor=inst1, course=course1)
+        self.assertTrue(course1.has_base_perms_for_instructor(inst1.user))
+        self.assertTrue(course1.has_perms_for_course_inst(inst1.user))
+        teaches1.delete()
+        self.assertTrue(course1.has_base_perms_for_instructor(inst1.user))
+        self.assertFalse(course1.has_perms_for_course_inst(inst1.user))
+
+        # test perms after deletion
+        user_stu1 = stu1.user
+        stu1.delete()
+        self.assertFalse(course1.has_base_perms_for_student(user_stu1))
+
+        user_inst1 = inst1.user
+        inst1.delete()
+        self.assertFalse(course1.has_base_perms_for_instructor(user_inst1))
+
+
 class CourseAssignmentTests(TestCase):
 
     def test_clean(self):
@@ -640,7 +666,6 @@ class InstructorPermsTests(TestCase):
 
         for stu in Student.objects.all():
             self.assertTrue(stu.has_base_perms_for_instructor(user))
-            self.assertTrue(inst.has_base_perms_for_student(stu.user))
 
         inst.delete()
         user = User.objects.get(pk=user.pk)
@@ -661,7 +686,6 @@ class InstructorPermsTests(TestCase):
 
         for stu in Student.objects.all():
             self.assertFalse(stu.has_base_perms_for_instructor(user))
-            self.assertFalse(inst.has_base_perms_for_student(stu.user))
 
 
 class InstructorManagerTests(TestCase):
@@ -759,7 +783,6 @@ class TakesTests(TestCase):
         self.assertFalse(course.has_perms_for_course_stu(stu.user))
         self.assertFalse(teaches.has_perms_for_course_stu(stu.user))
         self.assertTrue(stu.has_base_perms_for_instructor(inst.user))
-        self.assertTrue(inst.has_base_perms_for_student(stu.user))
 
         self.assertTrue(takes.has_perms_for_course_stu(stu1.user))
         self.assertTrue(takes.has_perms_for_course_inst(inst.user))
@@ -793,7 +816,6 @@ class TakesTests(TestCase):
         self.assertTrue(takes.has_perms_for_course_stu(stu.user))
         self.assertFalse(teaches.course.has_perms_for_course_stu(stu.user))
         self.assertFalse(teaches.has_perms_for_course_stu(stu.user))
-        self.assertTrue(inst.has_base_perms_for_student(stu.user))
         self.assertTrue(teaches1.course.has_perms_for_course_stu(stu.user))
         self.assertTrue(teaches1.has_perms_for_course_stu(stu.user))
         self.assertTrue(inst1.has_perms_for_course_stu(stu.user))
@@ -839,6 +861,9 @@ class TeachesTests(TestCase):
         with self.assertRaises(IntegrityError):
             factories.TeachesFactory(instructor=teaches.instructor,
                                      course=teaches.course)
+
+
+class TeachesPermsTests(TestCase):
 
     def test_perms(self):
         inst = factories.InstructorFactory()
@@ -971,6 +996,22 @@ class TeachesTests(TestCase):
         teaches.save()
         self.assertTrue(inst1.has_perms_for_course_stu(stu1.user))
         self.assertTrue(stu1.has_perms_for_course_inst(inst1.user))
+
+    def test_teaches_perms(self):
+        inst1 = factories.InstructorFactory()
+        inst2 = factories.InstructorFactory()
+        course1 = factories.CourseFactory()
+        course2 = factories.CourseFactory()
+        teaches1_1 = factories.TeachesFactory(instructor=inst1, course=course1)
+
+        self.assertTrue(teaches1_1.has_perms_for_course_inst(inst1.user))
+        self.assertFalse(teaches1_1.has_perms_for_course_inst(inst2.user))
+        self.assertFalse(teaches1_1.has_perms_for_other_course_inst(inst2.user))
+
+        teaches2_1 = factories.TeachesFactory(instructor=inst2, course=course1)
+        self.assertTrue(teaches1_1.has_perms_for_other_course_inst(inst2.user))
+        self.assertTrue(inst1.user.has_perm('core.view_teaches', teaches2_1))
+        self.assertTrue(teaches2_1.has_perms_for_other_course_inst(inst1.user))
 
 
 class ModelTests(TestCase):
