@@ -793,6 +793,10 @@ def student_assign_perms(sender, **kwargs):
         assign_perm('core.view_instructor', user)
         # 5. teaches
         assign_perm('core.view_teaches', user)
+        # 6. group
+        assign_perm('core.view_group', user)
+        assign_perm('core.change_group', user)
+        assign_perm('core.add_group', user)
 
         # object perms
         # 1. student itself
@@ -841,6 +845,10 @@ def student_remove_perms(sender, **kwargs):
     remove_perm('core.view_course', user)
     remove_perm('core.view_instructor', user)
     remove_perm('core.view_teaches', user)
+
+    remove_perm('core.view_group', user)
+    remove_perm('core.change_group', user)
+    remove_perm('core.add_group', user)
 
     remove_perm('core.view_student', user, student)
 
@@ -1071,6 +1079,11 @@ def instructor_assign_perms(sender, **kwargs):
         assign_perm('core.view_teaches', user)
         assign_perm('core.add_teaches', user)
         assign_perm('core.delete_teaches', user)
+        # 6. group
+        assign_perm('core.view_group', user)
+        assign_perm('core.change_group', user)
+        assign_perm('core.add_group', user)
+        assign_perm('core.delete_group', user)
 
         # object perms
         # 1. instructor itself
@@ -1105,6 +1118,11 @@ def instructor_remove_perms(sender, **kwargs):
     remove_perm('core.change_course', user)
     remove_perm('core.add_course', user)
     remove_perm('core.delete_course', user)
+
+    remove_perm('core.view_group', user)
+    remove_perm('core.change_group', user)
+    remove_perm('core.add_group', user)
+    remove_perm('core.delete_group', user)
 
     remove_perm('core.view_student', user)
 
@@ -1326,9 +1344,20 @@ class Group(models.Model):
         default='',
         blank=True,
     )
-    course = models.ForeignKey(Course)
+    course = models.ForeignKey(Course, related_name='groups')
     leader = models.ForeignKey(Student, related_name='leader_of', blank=True, null=True)
     members = models.ManyToManyField(Student, related_name='member_of')
+
+    class Meta:
+        permissions = (
+            ('view_group', 'Can view group'),
+            ('view_group_base', "Can view group, base level"),
+            ('view_group_normal', "Can view group, normal level"),
+            ('view_group_advanced', "Can view group, advanced level"),
+            ('change_group_base', "Can change group, base level"),
+            ('change_group_normal', "Can change group, normal level"),
+            ('change_group_advanced', "Can change group, advanced level"),
+        )
 
     def __str__(self):
         """Return group full name: YEAR-SEMESTER-NUM[-NAME]"""
@@ -1366,6 +1395,44 @@ class Group(models.Model):
             self.number = self.course.get_next_group_number()
 
         super(Group, self).save(*args, **kwargs)
+
+    # Object permission related methods
+    # -------------------------------------------------------------------------
+    # Object permission handler for users
+    # Students
+    def assign_perms_for_other_course_stu(self, user):
+        assign_perm('core.view_group', user, self)
+
+    def remove_perms_for_other_course_stu(self, user):
+        remove_perm('core.view_group', user, self)
+
+    def has_perms_for_other_course_stu(self, user):
+        return user.has_perm('core.view_group', self)
+
+    def assign_perms_for_leader(self, user):
+        assign_perm('core.change_group', user, self)
+
+    def remove_perms_for_leader(self, user):
+        remove_perm('core.change_group', user, self)
+
+    def has_perms_for_leader(self, user):
+        return user.has_perm('core.change_group', self)
+
+    # Instructors
+    def assign_perms_for_course_inst(self, user):
+        assign_perm('core.view_group', user, self)
+        assign_four_level_perm('core.change_group_advanced', user, self)
+        assign_perm('core.delete_group', user, self)
+
+    def remove_perms_for_course_inst(self, user):
+        remove_perm('core.view_group', user, self)
+        remove_perm('core.change_group_advanced', user, self)
+        remove_perm('core.delete_group', user, self)
+
+    def has_perms_for_course_inst(self, user):
+        return (user.has_perm('core.view_group', self) and
+                has_four_level_perm('core.change_group_advanced', user, self) and
+                user.has_perm('core.delete_group', self))
 
 
 class GroupContactInfo(ContactInfo):
