@@ -35,7 +35,7 @@ tablib==0.10.0
 djangorestframework==3.3.2
 
 # drf extensions
-drf-extensions==0.3.0
+drf-extensions
 
 # django filter
 django-filter==0.11.0
