@@ -13,6 +13,7 @@ from .serializers import (
     InstructorCoursesSerializer, ReadInstructorCoursesSerializer,
     CourseSerializer, ReadCourseSerializer, BaseWriteCourseSerializer,
     CourseInstructorsSerializer, ReadCourseInstructorsSerializer,
+    CourseStudentsSerializer, ReadCourseStudentsSerializer, BaseWriteCourseStudentsSerializer,
     ClassSerializer,
 )
 from .models import (
@@ -301,6 +302,9 @@ class CourseViewSet(FourLevelPermModelViewSet):
     advanced_write_serializer_class = write_serializer_class
 
 
+# -----------------------------------------------------------------------------
+# CourseInstructors ViewSets
+# -----------------------------------------------------------------------------
 class CourseInstructorsViewSet(NestedViewSetMixin, FourLevelPermNestedModelViewSet):
     queryset = Teaches.objects.all()
     filter_backends = (FourLevelObjectPermissionsFilter, )
@@ -310,6 +314,24 @@ class CourseInstructorsViewSet(NestedViewSetMixin, FourLevelPermNestedModelViewS
     read_serializer_class = ReadCourseInstructorsSerializer
     write_serializer_class = CourseInstructorsSerializer
     base_write_serializer_class = write_serializer_class
+    normal_write_serializer_class = write_serializer_class
+    advanced_write_serializer_class = write_serializer_class
+
+    parent_field_name = 'course'
+
+
+# -----------------------------------------------------------------------------
+# CourseStudents ViewSets
+# -----------------------------------------------------------------------------
+class CourseStudentsViewSet(NestedViewSetMixin, FourLevelPermNestedModelViewSet):
+    queryset = Takes.objects.all()
+    filter_backends = (FourLevelObjectPermissionsFilter, )
+    permission_classes = (FourLevelObjectPermissions, )
+    serializer_class = ReadCourseStudentsSerializer
+
+    read_serializer_class = ReadCourseStudentsSerializer
+    write_serializer_class = CourseStudentsSerializer
+    base_write_serializer_class = BaseWriteCourseStudentsSerializer
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class
 

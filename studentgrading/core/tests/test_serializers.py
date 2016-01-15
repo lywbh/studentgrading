@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from django.test import RequestFactory
 from django.contrib.auth import get_user_model
+from django.core.urlresolvers import reverse as django_reverse
 
 from rest_framework.reverse import reverse
 from rest_framework.test import APITestCase, APIRequestFactory, force_authenticate
@@ -10,7 +11,7 @@ from .factories import (
 )
 from ..serializers import (
     StudentSerializer, StudentCoursesSerializer, BaseWriteStudentCoursesSerializer,
-    ReadCourseSerializer,
+    ReadCourseSerializer, CourseStudentsSerializer,
 )
 from ..models import (
     Student,
@@ -26,6 +27,10 @@ def get_course_url(course):
 
 def get_student_url(student):
     return reverse('api:student-detail', kwargs={'pk': student.pk})
+
+
+def get_instructor_url(instructor):
+    return reverse('api:instructor-detail', kwargs={'pk': instructor.pk})
 
 
 class StudentTests(APITestCase):
@@ -96,3 +101,28 @@ class CourseTests(APITestCase):
         serializer = ReadCourseSerializer(course1, context=dict(request=self.request))
 
         # print(repr(serializer))
+
+
+class CourseStudentsTests(APITestCase):
+
+    def test_test(self):
+        stu1 = factories.StudentFactory()
+        course1 = factories.CourseFactory()
+
+        serializer = StudentCoursesSerializer(data=dict(
+            student=get_student_url(stu1),
+            course=get_course_url(course1),
+        ))
+        self.assertTrue(serializer.is_valid())
+        takes1 = serializer.save()
+        self.assertEqual(takes1.grade, None)
+
+    def test_save(self):
+        course1 = factories.CourseFactory()
+        stu1 = factories.StudentFactory()
+
+        serializer = CourseStudentsSerializer(data=dict(
+            student=get_student_url(stu1), course=get_course_url(course1),
+        ))
+        serializer.is_valid()
+

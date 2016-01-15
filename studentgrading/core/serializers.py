@@ -44,6 +44,80 @@ class ChildHyperlinkedIdentityField(serializers.HyperlinkedIdentityField):
 
 
 # -----------------------------------------------------------------------------
+# Relationship Serializers
+# -----------------------------------------------------------------------------
+class TakesSerializer(serializers.HyperlinkedModelSerializer):
+
+    class Meta:
+        model = Takes
+        fields = ('url', 'id', 'student', 'course', 'grade')
+        extra_kwargs = {
+            'student': {'view_name': 'api:student-detail'},
+            'course': {'view_name': 'api:course-detail'},
+        }
+
+    def to_representation(self, instance):
+        ret = super(TakesSerializer, self).to_representation(instance)
+        user = self.context['request'].user
+        if not has_four_level_perm('core.view_takes', user, instance):
+            del ret['grade']
+
+        return ret
+
+    def to_internal_value(self, data):
+        validated_data = super(TakesSerializer, self).to_internal_value(data)
+        if getattr(self, 'context'):
+            request = self.context['request']
+            user = request.user
+            user_role = get_role_of(user)
+            if (isinstance(user_role, Instructor) and
+                    request.method == 'POST' and
+                    'course' in validated_data):
+                # When instructor tries to add a 'takes' with this student,
+                # it can only add the student to its course
+                request_instructor = user_role
+                course = validated_data['course']
+                if not request_instructor.is_giving(course):
+                    raise serializers.ValidationError({
+                        'course': 'Cannot add student to a course not given by you.'
+                    })
+        return validated_data
+
+
+class TeachesSerializer(serializers.HyperlinkedModelSerializer):
+
+    class Meta:
+        model = Teaches
+        fields = ('url', 'id', 'instructor', 'course')
+        extra_kwargs = {
+            'instructor': {'view_name': 'api:instructor-detail'},
+            'course': {'view_name': 'api:course-detail'},
+        }
+
+    def to_internal_value(self, data):
+        validated_data = super(TeachesSerializer, self).to_internal_value(data)
+        if getattr(self, 'context'):
+            request = self.context['request']
+            user = request.user
+            user_role = get_role_of(user)
+
+            if (isinstance(user_role, Instructor) and
+                    request.method == 'POST' and
+                    'course' in validated_data and
+                    'instructor' in validated_data):
+                # When instructor tries to add 'teaches' with a course not given by itself,
+                # it can only add itself to this course
+                requeset_inst = user_role
+                instructor = validated_data['instructor']
+                course = validated_data['course']
+                if not instructor.pk == requeset_inst.pk and not course.is_given_by(requeset_inst):
+                    raise serializers.ValidationError({
+                        'course': 'Cannot add an instructor to a course not given by you.'
+                    })
+        return validated_data
+
+
+# -----------------------------------------------------------------------------
 # Student Serializers
 # -----------------------------------------------------------------------------
 class StudentSerializer(serializers.HyperlinkedModelSerializer):
@@ -125,39 +199,15 @@ class ReadInstructorSerializer(InstructorSerializer):
 # -----------------------------------------------------------------------------
 # StudentCourses Serializers (students/{pk}/courses/)
 # -----------------------------------------------------------------------------
-class StudentCoursesSerializer(serializers.HyperlinkedModelSerializer):
+class StudentCoursesSerializer(TakesSerializer):
 
     url = ChildHyperlinkedIdentityField(
         view_name='api:student-course-detail',
         parent_field_name='student',
     )
 
-    class Meta:
-        model = Takes
-        fields = ('url', 'id', 'student', 'course', 'grade')
-        extra_kwargs = {
-            'student': {'view_name': 'api:student-detail'},
-            'course': {'view_name': 'api:course-detail'},
-        }
-
-    def to_internal_value(self, data):
-        validated_data = super(StudentCoursesSerializer, self).to_internal_value(data)
-        if getattr(self, 'context'):
-            request = self.context['request']
-            user = request.user
-            user_role = get_role_of(user)
-            if (isinstance(user_role, Instructor) and
-                    request.method == 'POST' and
-                    'course' in validated_data):
-                # When instructor tries to add a 'takes' with this student,
-                # it can only add the student to its course
-                request_instructor = user_role
-                course = validated_data['course']
-                if not request_instructor.is_giving(course):
-                    raise serializers.ValidationError({
-                        'course': 'Cannot let a student take a course not given by you.'
-                    })
-        return validated_data
+    class Meta(TakesSerializer.Meta):
+        pass
 
 
 class ReadStudentCoursesSerializer(StudentCoursesSerializer):
@@ -173,42 +223,15 @@ class BaseWriteStudentCoursesSerializer(StudentCoursesSerializer):
 # -----------------------------------------------------------------------------
 # InstructorCourses Serializers (instructors/{pk}/courses/)
 # -----------------------------------------------------------------------------
-class InstructorCoursesSerializer(serializers.HyperlinkedModelSerializer):
+class InstructorCoursesSerializer(TeachesSerializer):
 
     url = ChildHyperlinkedIdentityField(
         view_name='api:instructor-course-detail',
         parent_field_name='instructor',
     )
 
-    class Meta:
-        model = Teaches
-        fields = ('url', 'id', 'instructor', 'course')
-        extra_kwargs = {
-            'instructor': {'view_name': 'api:instructor-detail'},
-            'course': {'view_name': 'api:course-detail'},
-        }
-
-    def to_internal_value(self, data):
-        validated_data = super(InstructorCoursesSerializer, self).to_internal_value(data)
-        if getattr(self, 'context'):
-            request = self.context['request']
-            user = request.user
-            user_role = get_role_of(user)
-
-            if (isinstance(user_role, Instructor) and
-                    request.method == 'POST' and
-                    'instructor' in validated_data and
-                    user_role.pk != validated_data['instructor'].pk and
-                    'course' in validated_data):
-                # When instructor tries to add a 'teaches' with an instructor not itself,
-                # it can only add the instructor to its own course
-                request_instructor = user_role
-                course = validated_data['course']
-                if not request_instructor.is_giving(course):
-                    raise serializers.ValidationError({
-                        'course': 'Cannot let an instructor take a course not given by you.'
-                    })
-        return validated_data
+    class Meta(TeachesSerializer.Meta):
+        pass
 
 
 class ReadInstructorCoursesSerializer(InstructorCoursesSerializer):
@@ -279,47 +302,44 @@ class BaseWriteCourseSerializer(CourseSerializer):
 # -----------------------------------------------------------------------------
 # CourseInstructors Serializers (courses/{pk}/instructors/)
 # -----------------------------------------------------------------------------
-class CourseInstructorsSerializer(serializers.HyperlinkedModelSerializer):
+class CourseInstructorsSerializer(TeachesSerializer):
 
     url = ChildHyperlinkedIdentityField(
         view_name='api:course-instructor-detail',
         parent_field_name='course',
     )
 
-    class Meta:
-        model = Teaches
-        fields = ('url', 'id', 'instructor', 'course')
-        extra_kwargs = {
-            'instructor': {'view_name': 'api:instructor-detail'},
-            'course': {'view_name': 'api:course-detail'},
-        }
-
-    def to_internal_value(self, data):
-        validated_data = super(CourseInstructorsSerializer, self).to_internal_value(data)
-        if getattr(self, 'context'):
-            request = self.context['request']
-            user = request.user
-            user_role = get_role_of(user)
-
-            if (isinstance(user_role, Instructor) and
-                    request.method == 'POST' and
-                    'course' in validated_data and
-                    not validated_data['course'].is_given_by(user_role) and
-                    'instructor' in validated_data):
-                # When instructor tries to add 'teaches' with a course not given by itself,
-                # it can only add itself to this course
-                requeset_inst = user_role
-                instructor = validated_data['instructor']
-                if not instructor.pk == requeset_inst.pk:
-                    raise serializers.ValidationError({
-                        'course': 'Cannot let another instructor take a course not given by you.'
-                    })
-        return validated_data
+    class Meta(TeachesSerializer.Meta):
+        pass
 
 
 class ReadCourseInstructorsSerializer(CourseInstructorsSerializer):
     class Meta(CourseInstructorsSerializer.Meta):
         read_only_fields = ('instructor', 'course')
+
+
+# -----------------------------------------------------------------------------
+# CourseStudents Serializers (courses/{pk}/students/)
+# -----------------------------------------------------------------------------
+class CourseStudentsSerializer(TakesSerializer):
+
+    url = ChildHyperlinkedIdentityField(
+        view_name='api:course-student-detail',
+        parent_field_name='course',
+    )
+
+    class Meta(TakesSerializer.Meta):
+        pass
+
+
+class ReadCourseStudentsSerializer(CourseStudentsSerializer):
+    class Meta(CourseStudentsSerializer.Meta):
+        read_only_fields = ('student', 'course', 'grade', )
+
+
+class BaseWriteCourseStudentsSerializer(CourseStudentsSerializer):
+    class Meta(CourseStudentsSerializer.Meta):
+        fields = ('url', 'id', 'grade')
 
 
 class ClassSerializer(serializers.HyperlinkedModelSerializer):

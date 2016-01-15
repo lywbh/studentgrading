@@ -24,13 +24,16 @@ router.register(r'users', users_viewsets.UserViewSet)
                     'instructor-course',
                     parents_query_lookups=['instructor'])
 )
-(
-    router.register(r'courses', core_viewsets.CourseViewSet)
-          .register(r'instructors',
-                    core_viewsets.CourseInstructorsViewSet,
-                    'course-instructor',
-                    parents_query_lookups=['course'])
-)
+course_router = router.register(r'courses', core_viewsets.CourseViewSet)
+course_router.register(r'instructors',
+                       core_viewsets.CourseInstructorsViewSet,
+                       'course-instructor',
+                       parents_query_lookups=['course'])
+course_router.register(r'students',
+                       core_viewsets.CourseStudentsViewSet,
+                       'course-student',
+                       parents_query_lookups=['course'])
+
 router.register(r'classes', core_viewsets.ClassViewSet)
 
 urlpatterns = patterns(

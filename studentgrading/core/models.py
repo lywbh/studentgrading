@@ -1476,6 +1476,15 @@ class Takes(ModelDiffMixin, models.Model):
     def has_perms_for_course_stu(self, user):
         return user.has_perm('core.view_takes', self)
 
+    def assign_perms_for_other_course_stu(self, user):
+        assign_perm('core.view_takes_base', user, self)
+
+    def remove_perms_for_other_course_stu(self, user):
+        remove_perm('core.view_takes_base', user, self)
+
+    def has_perms_for_other_course_stu(self, user):
+        return has_four_level_perm('core.view_takes_base', user, self)
+
     # Instructor
     def assign_perms_for_course_inst(self, user):
         assign_perm('core.view_takes', user, self)
@@ -1524,6 +1533,9 @@ class Takes(ModelDiffMixin, models.Model):
         for takes in takes_list:
             course_stu = takes.student
 
+            self.assign_perms_for_other_course_stu(course_stu.user)
+            takes.assign_perms_for_other_course_stu(stu_user)
+
             student.assign_perms_for_course_stu(course_stu.user)
             course_stu.assign_perms_for_course_stu(student.user)
 
@@ -1556,6 +1568,9 @@ class Takes(ModelDiffMixin, models.Model):
         # and vice versa
         for takes in takes_list:
             course_stu = takes.student
+
+            self.remove_perms_for_other_course_stu(course_stu.user)
+            takes.remove_perms_for_other_course_stu(stu_user)
 
             student.remove_perms_for_course_stu(course_stu.user)
             course_stu.remove_perms_for_course_stu(student.user)
