@@ -159,3 +159,22 @@ class CreateGroupPermission(permissions.BasePermission):
         else:
             return False
         return True
+
+
+class IsStudent(permissions.BasePermission):
+
+    def has_permission(self, request, view):
+        user = request.user
+        user_role = get_role_of(user)
+
+        return isinstance(user_role, Student)
+
+
+class IsInstructor(permissions.BasePermission):
+
+    def has_permission(self, request, view):
+        user = request.user
+        user_role = get_role_of(user)
+
+        return isinstance(user_role, Instructor)
+

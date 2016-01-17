@@ -2,7 +2,7 @@
 from rest_framework import viewsets, filters, mixins, status, generics
 from rest_framework.response import Response
 from rest_framework.relations import reverse
-from rest_framework.decorators import detail_route
+from rest_framework.decorators import detail_route, list_route
 
 from rest_framework_extensions.mixins import NestedViewSetMixin
 from guardian.shortcuts import get_objects_for_user
@@ -23,7 +23,7 @@ from .models import (
     get_role_of,
 )
 from .permissions import (
-    FourLevelObjectPermissions, CreateGroupPermission,
+    FourLevelObjectPermissions, CreateGroupPermission, IsInstructor, IsStudent,
 )
 
 
@@ -327,6 +327,40 @@ class CourseViewSet(FourLevelPermModelViewSet):
         serializer.save()
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    @list_route(methods=['get'], permission_classes=[IsInstructor])
+    def giving(self, request):
+        """
+        Get a list of courses given by this instructor
+        """
+        self.check_permissions(request)
+
+        queryset = Course.objects.given_by(get_role_of(request.user))
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = ReadCourseSerializer(page, many=True, context=self.get_serializer_context())
+            return self.get_paginated_response(serializer.data)
+
+        serializer = ReadCourseSerializer(queryset, many=True, context=self.get_serializer_context())
+        return Response(serializer.data)
+
+    @list_route(methods=['get'], permission_classes=[IsStudent])
+    def taking(self, request):
+        """
+        Get a list of courses given by this student
+        """
+        self.check_permissions(request)
+
+        queryset = Course.objects.taken_by(get_role_of(request.user))
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = ReadCourseSerializer(page, many=True, context=self.get_serializer_context())
+            return self.get_paginated_response(serializer.data)
+
+        serializer = ReadCourseSerializer(queryset, many=True, context=self.get_serializer_context())
+        return Response(serializer.data)
 
 
 # -----------------------------------------------------------------------------

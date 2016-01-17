@@ -300,6 +300,9 @@ class CourseQuerySet(models.QuerySet):
     def taken_by(self, student):
         return self.filter(students=student)
 
+    def given_by(self, instructor):
+        return self.filter(instructors=instructor)
+
 
 class CourseManager(models.Manager):
     pass

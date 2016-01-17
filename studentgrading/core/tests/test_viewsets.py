@@ -676,6 +676,12 @@ class CourseAITests(APITestUtilsMixin, APITestCase):
         return (set(group_dict.keys()) ==
                 {'url', 'id', 'course', 'number', 'name', 'leader', 'members', })
 
+    def get_giving_courses(self):
+        return self.client.get(reverse('api:course-list') + 'giving/')
+
+    def get_taking_courses(self):
+        return self.client.get(reverse('api:course-list') + 'taking/')
+
     @unittest.skipIf(print_api_response, print_api_response_reason)
     def test_print_get(self):
         course1 = factories.CourseFactory()
@@ -987,6 +993,36 @@ class CourseAITests(APITestUtilsMixin, APITestCase):
 
         response = self.get_group_detail(course1, group1)
         self.assertTrue(self.is_group_fields(response.data))
+
+    def test_get_giving(self):
+        inst1 = factories.InstructorFactory()
+        for i in range(3):
+            factories.TeachesFactory(instructor=inst1, course=factories.CourseFactory())
+            factories.CourseFactory()
+
+        self.force_authenticate_user(inst1.user)
+        response = self.get_giving_courses()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 3)
+
+        self.force_authenticate_user(factories.StudentFactory().user)
+        response = self.get_giving_courses()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_get_taking(self):
+        stu1 = factories.StudentFactory()
+        for i in range(3):
+            factories.TakesFactory(student=stu1, course=factories.CourseFactory())
+            factories.CourseFactory()
+
+        self.force_authenticate_user(stu1.user)
+        response = self.get_taking_courses()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 3)
+
+        self.force_authenticate_user(factories.InstructorFactory().user)
+        response = self.get_taking_courses()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @unittest.skipIf(print_api_response, print_api_response_reason)
     def test_print_post_group(self):
