@@ -62,7 +62,7 @@ class ModelDiffMixin(object):
         """
         return self.diff.get(field_name, None)
 
-    def get_past_field_pk(self, field_name):
+    def get_old_field(self, field_name):
         diff = self.diff.get(field_name, None)
         return diff[0] if diff else None
 
@@ -327,7 +327,7 @@ class Course(models.Model):
     )
     max_group_size = models.IntegerField(
         validators=[MinValueValidator(0)],
-        default=0,
+        default=5,
     )
 
     objects = CourseManager.from_queryset(CourseQuerySet)()
@@ -368,7 +368,7 @@ class Course(models.Model):
     # -------------------------------------------------------------------------
     def get_used_group_numbers(self):
         """Return a list of used group number"""
-        return self.group_set.values_list('number', flat=True)
+        return self.groups.values_list('number', flat=True)
 
     def get_next_group_number(self):
         """Return the next available group number"""
@@ -384,8 +384,9 @@ class Course(models.Model):
         return self.assignments.all()
 
     def add_group(self, members=(), *args, **kwargs):
-        group = self.group_set.create(*args, **kwargs)
-        group.members.add(*members)
+        group = self.groups.create(*args, **kwargs)
+        for member in members:
+            GroupMembership.objects.create(group=group, student=member)
 
     def add_assignment(self, *args, **kwargs):
         self.assignments.create(*args, **kwargs)
@@ -406,6 +407,13 @@ class Course(models.Model):
     def is_given_by(self, instructor):
         return self.instructors.filter(pk=instructor.pk).exists()
 
+    def is_taken_by(self, student):
+        return self.students.filter(pk=student.pk).exists()
+
+    def has_group_including(self, student):
+        query = Q(leader=student) | Q(members=student)
+        return self.groups.filter(query).exists()
+
     # Object permission related methods
     # -------------------------------------------------------------------------
     # Object permission handler for users
@@ -421,10 +429,16 @@ class Course(models.Model):
 
     def assign_perms_for_course_stu(self, user):
         assign_perm('core.view_course', user, self)
+        # plus perms on course groups
+        for group in self.groups.all():
+            group.assign_perms_for_course_stu(user)
 
     def remove_perms_for_course_stu(self, user):
         remove_perm('core.view_course', user, self)
         self.assign_base_perms_for_student(user)
+        # remove perms on course groups
+        for group in self.groups.all():
+            group.remove_perms_for_course_stu(user)
 
     def has_perms_for_course_stu(self, user):
         return user.has_perm('core.view_course', self)
@@ -443,12 +457,18 @@ class Course(models.Model):
         assign_perm('core.view_course', user, self)
         assign_four_level_perm('core.change_course_base', user, self)
         assign_perm('core.delete_course', user, self)
+        # plus perms on course groups
+        for group in self.groups.all():
+            group.assign_perms_for_course_inst(user)
 
     def remove_perms_for_course_inst(self, user):
         remove_perm('core.view_course', user, self)
         remove_perm('core.change_course_base', user, self)
         remove_perm('core.delete_course', user, self)
         self.assign_base_perms_for_instructor(user)
+        # remove perms on course groups
+        for group in self.groups.all():
+            group.remove_perms_for_course_inst(user)
 
     def has_perms_for_course_inst(self, user):
         return (user.has_perm('core.view_course', self) and
@@ -623,6 +643,9 @@ class Student(ModelDiffMixin, UserProfile):
         :return: `True` or `False`
         """
         return self.courses.filter(instructors=instructor).exists()
+
+    def is_taking(self, course):
+        return self.courses.filter(pk=course.pk).exists()
 
     # Object permission related methods
     # -------------------------------------------------------------------------
@@ -818,7 +841,7 @@ def student_assign_perms(sender, **kwargs):
         student.assign_class_perms()
 
     else:   # change permissions after updating student
-        old_cls_pk = student.get_past_field_pk('s_class')
+        old_cls_pk = student.get_old_field('s_class')
         if old_cls_pk:    # if student has a new class now
             # remove all view perms from old classmates
             old_cls = Class.objects.get(pk=old_cls_pk)
@@ -1309,8 +1332,8 @@ def teaches_assign_perms(instance, created, **kwargs):
         teaches.assign_course_perms()
         teaches.assign_instructor_perms()
     else:
-        old_course_pk = teaches.get_past_field_pk('course')
-        old_instructor_pk = teaches.get_past_field_pk('instructor')
+        old_course_pk = teaches.get_old_field('course')
+        old_instructor_pk = teaches.get_old_field('instructor')
         if old_course_pk:
             old_course = Course.objects.get(pk=old_course_pk)
             teaches.remove_course_perms(old_course)
@@ -1330,7 +1353,7 @@ def teaches_remove_perms(instance, **kwargs):
     teaches.remove_instructor_perms(teaches.instructor)
 
 
-class Group(models.Model):
+class Group(ModelDiffMixin, models.Model):
 
     number = models.CharField(
         verbose_name='group number',
@@ -1345,8 +1368,10 @@ class Group(models.Model):
         blank=True,
     )
     course = models.ForeignKey(Course, related_name='groups')
-    leader = models.ForeignKey(Student, related_name='leader_of', blank=True, null=True)
-    members = models.ManyToManyField(Student, related_name='member_of')
+    leader = models.ForeignKey(Student, related_name='leader_of')
+    members = models.ManyToManyField(Student,
+                                     related_name='member_of',
+                                     through='GroupMembership',)
 
     class Meta:
         permissions = (
@@ -1374,23 +1399,37 @@ class Group(models.Model):
         Check if number is not used and is in the number list of its course,
         or raise ValidationError
         """
-        if (not self.course.group_set.filter(pk=self.pk).exists() and
-                self.number in self.course.get_used_group_numbers()):
-            raise ValidationError({'number': 'Number already used.'})
-        if self.number not in self.course.NUMBERS_LIST:
-            raise ValidationError({'number': 'Number should be in the list.'})
+        if not self.number:
+            return
+
+        if not self.pk:  # created
+            if self.number not in self.course.NUMBERS_LIST:
+                raise ValidationError({'number': 'Number should be in the list.'})
+            elif self.number in self.course.get_used_group_numbers():
+                raise ValidationError({'number': 'Number already used.'})
+        else:
+            old_number = self.get_old_field('number')
+            if not old_number:
+                return
+            if self.number not in self.course.NUMBERS_LIST:
+                raise ValidationError({'number': 'Number should be in the list.'})
+            elif self.number in self.course.get_used_group_numbers():
+                raise ValidationError({'number': 'Number already used.'})
+
+    def validate_leader(self):
+        """
+        Validate if `leader` takes `course`
+        """
+        if not self.leader.is_taking(self.course):
+            raise ValidationError({'leader': 'Group leader does not take the course.'})
 
     def clean(self):
-        # check if number is valid
         self.validate_group_number()
+        self.validate_leader()
 
     def save(self, *args, **kwargs):
-        # check if number is valid
-        try:
-            self.validate_group_number()
-        except ValidationError:
-            if self.number:
-                raise
+        self.full_clean()
+        if not self.number:
             # if number is empty, fill in default number
             self.number = self.course.get_next_group_number()
 
@@ -1400,23 +1439,23 @@ class Group(models.Model):
     # -------------------------------------------------------------------------
     # Object permission handler for users
     # Students
-    def assign_perms_for_other_course_stu(self, user):
+    def assign_perms_for_course_stu(self, user):
         assign_perm('core.view_group', user, self)
 
-    def remove_perms_for_other_course_stu(self, user):
+    def remove_perms_for_course_stu(self, user):
         remove_perm('core.view_group', user, self)
 
-    def has_perms_for_other_course_stu(self, user):
+    def has_perms_for_course_stu(self, user):
         return user.has_perm('core.view_group', self)
 
     def assign_perms_for_leader(self, user):
-        assign_perm('core.change_group', user, self)
+        assign_four_level_perm('core.change_group_advanced', user, self)
 
     def remove_perms_for_leader(self, user):
-        remove_perm('core.change_group', user, self)
+        remove_perm('core.change_group_advanced', user, self)
 
     def has_perms_for_leader(self, user):
-        return user.has_perm('core.change_group', self)
+        return has_four_level_perm('core.change_group_advanced', user, self)
 
     # Instructors
     def assign_perms_for_course_inst(self, user):
@@ -1434,9 +1473,94 @@ class Group(models.Model):
                 has_four_level_perm('core.change_group_advanced', user, self) and
                 user.has_perm('core.delete_group', self))
 
+    # Object permission handlers for 12m relationship
+    # ------------------------------------
+    # Group leader relationship
+    def assign_leader_perms(self):
+        self.assign_perms_for_leader(self.leader.user)
+
+    def remove_leader_perms(self):
+        self.remove_perms_for_leader(self.leader.user)
+
+
+@receiver(post_save, sender=Group)
+def group_assign_perms(**kwargs):
+    group, created = kwargs['instance'], kwargs['created']
+    if created:
+        # course student's perms on group
+        for stu in group.course.students.all():
+            group.assign_perms_for_course_stu(stu.user)
+
+        # course inst's perms on group
+        for inst in group.course.instructors.all():
+            group.assign_perms_for_course_inst(inst.user)
+
+        # group leader's perms on group
+        group.assign_perms_for_leader(group.leader.user)
+
+    else:
+        old_leader_pk = group.get_old_field('leader')
+        if old_leader_pk:
+            old_leader = Student.objects.get(pk=old_leader_pk)
+            group.remove_perms_for_leader(old_leader.user)
+
+            group.assign_perms_for_leader(group.leader.user)
+
+    group.save_all_field_diff()
+
+
+@receiver(post_delete, sender=Group)
+def group_remove_perms(**kwargs):
+    group = kwargs['instance']
+
+    # course student's perms on group
+    for stu in group.course.students.all():
+        group.remove_perms_for_course_stu(stu.user)
+
+    # course inst's perms on group
+    for inst in group.course.instructors.all():
+        group.remove_perms_for_course_inst(inst.user)
+
+    # group leader's perms on group
+    group.remove_perms_for_leader(group.leader.user)
+
 
 class GroupContactInfo(ContactInfo):
     group = models.ForeignKey(Group, related_name='contact_infos')
+
+
+class GroupMembership(ModelDiffMixin, models.Model):
+    group = models.ForeignKey(Group, related_name='group_memberships')
+    student = models.ForeignKey(Student, related_name='group_memberships')
+
+    class Meta:
+        verbose_name_plural = 'group_membership'
+        unique_together = (('group', 'student'), )
+        permissions = (
+            ('view_grp_membership', 'Can view grp_membership'),
+            ('view_grp_membership_base', 'Can view grp_membership - base level'),
+            ('view_grp_membership_normal', 'Can view grp_membership - normal level'),
+            ('view_grp_membership_advanced', 'Can view grp_membership - advanced level'),
+            ('change_grp_membership_base', 'Can change grp_membership - base level'),
+            ('change_grp_membership_normal', 'Can change grp_membership - normal level'),
+            ('change_grp_membership_advanced', 'Can change grp_membership - advanced level'),
+        )
+
+    def validate_student(self):
+        """
+        Student should take the group course and is not a member of any group.
+        """
+        if not self.group.course.is_taken_by(self.student):
+            raise ValidationError({'student': "Student should take the group course."})
+        if self.group.course.has_group_including(self.student):
+            raise ValidationError({'student': "Student is already in a group."})
+
+    def clean(self):
+        self.validate_student()
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super(GroupMembership, self).save(*args, **kwargs)
 
 
 class CourseAssignment(models.Model):
@@ -1713,8 +1837,8 @@ def takes_assign_perms(sender, **kwargs):
         # instructor perms
         takes.assign_course_perms()
     else:
-        old_course_pk = takes.get_past_field_pk('course')
-        old_stu_pk = takes.get_past_field_pk('student')
+        old_course_pk = takes.get_old_field('course')
+        old_stu_pk = takes.get_old_field('student')
         if old_course_pk:
             old_course = Course.objects.get(pk=old_course_pk)
             takes.remove_course_perms(old_course)

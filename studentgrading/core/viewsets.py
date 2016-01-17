@@ -2,6 +2,7 @@
 from rest_framework import viewsets, filters, mixins, status, generics
 from rest_framework.response import Response
 from rest_framework.relations import reverse
+from rest_framework.decorators import detail_route
 
 from rest_framework_extensions.mixins import NestedViewSetMixin
 from guardian.shortcuts import get_objects_for_user
@@ -14,13 +15,15 @@ from .serializers import (
     CourseSerializer, ReadCourseSerializer, BaseWriteCourseSerializer,
     CourseInstructorsSerializer, ReadCourseInstructorsSerializer,
     CourseStudentsSerializer, ReadCourseStudentsSerializer, BaseWriteCourseStudentsSerializer,
+    ReadGroupSerializer, CreateGroupSerializer, WriteGroupSerializer,
     ClassSerializer,
 )
 from .models import (
-    Student, Class, Course, Takes, Instructor, Teaches,
+    Student, Class, Course, Takes, Instructor, Teaches, Group,
+    get_role_of,
 )
 from .permissions import (
-    FourLevelObjectPermissions
+    FourLevelObjectPermissions, CreateGroupPermission,
 )
 
 
@@ -181,7 +184,7 @@ class FourLevelPermModelViewSet(FourLevelPermCreateModelMixin,
     pass
 
 
-class FourLevelPermNestedModelViewSet(FourLevelPermModelViewSet):
+class FourLevelPermNestedGenericViewSet(FourLevelPermGenericViewSet):
     parent_field_name = None
     parent_query_lookup = None
     parent_view_name = None
@@ -214,6 +217,15 @@ class FourLevelPermNestedModelViewSet(FourLevelPermModelViewSet):
         data[parent_field_name] = reverse(self.get_parent_view_name(), kwargs={'pk': parent_pk})
 
         return data
+
+
+class FourLevelPermNestedModelViewSet(FourLevelPermCreateModelMixin,
+                                      FourLevelPermListModelMixin,
+                                      FourLevelPermRetrieveModelMixin,
+                                      FourLevelPermUpdateModelMixin,
+                                      FourLevelPermDestroyModelMixin,
+                                      FourLevelPermNestedGenericViewSet):
+    pass
 
 
 # -----------------------------------------------------------------------------
@@ -301,11 +313,31 @@ class CourseViewSet(FourLevelPermModelViewSet):
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class
 
+    @detail_route(methods=['post'], permission_classes=[CreateGroupPermission])
+    def add_group(self, request, pk=None):
+        """
+        Create a group to the course
+        """
+        self.check_object_permissions(request, Course.objects.get(pk=pk))
+        # put in `course` parameter
+        data = request.data.copy()
+        data['course'] = reverse('api:course-detail', kwargs=dict(pk=pk))
+        serializer = CreateGroupSerializer(data=data, context=self.get_serializer_context())
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
 
 # -----------------------------------------------------------------------------
 # CourseInstructors ViewSets
 # -----------------------------------------------------------------------------
-class CourseInstructorsViewSet(NestedViewSetMixin, FourLevelPermNestedModelViewSet):
+class CourseInstructorsViewSet(NestedViewSetMixin,
+                               FourLevelPermListModelMixin,
+                               FourLevelPermRetrieveModelMixin,
+                               FourLevelPermCreateModelMixin,
+                               FourLevelPermDestroyModelMixin,
+                               FourLevelPermNestedGenericViewSet):
     queryset = Teaches.objects.all()
     filter_backends = (FourLevelObjectPermissionsFilter, )
     permission_classes = (FourLevelObjectPermissions, )
@@ -336,6 +368,41 @@ class CourseStudentsViewSet(NestedViewSetMixin, FourLevelPermNestedModelViewSet)
     advanced_write_serializer_class = write_serializer_class
 
     parent_field_name = 'course'
+
+
+# -----------------------------------------------------------------------------
+# Group ViewSets
+# -----------------------------------------------------------------------------
+class GroupViewSet(FourLevelPermListModelMixin,
+                   FourLevelPermRetrieveModelMixin,
+                   FourLevelPermUpdateModelMixin,
+                   FourLevelPermDestroyModelMixin,
+                   FourLevelPermGenericViewSet):
+    # PUT method is not allowed
+    http_method_names = [name for name in FourLevelPermGenericViewSet.http_method_names if name not in ['put']]
+
+    queryset = Group.objects.all()
+    filter_backends = (FourLevelObjectPermissionsFilter, )
+    permission_classes = (FourLevelObjectPermissions, )
+    serializer_class = ReadGroupSerializer
+
+    read_serializer_class = ReadGroupSerializer
+    write_serializer_class = CreateGroupSerializer
+    advanced_write_serializer_class = WriteGroupSerializer
+    normal_write_serializer_class = advanced_write_serializer_class
+    base_write_serializer_class = advanced_write_serializer_class
+
+
+class CourseGroupsViewSet(NestedViewSetMixin,
+                          FourLevelPermListModelMixin,
+                          FourLevelPermRetrieveModelMixin,
+                          FourLevelPermNestedGenericViewSet):
+    queryset = Group.objects.all()
+    filter_backends = (FourLevelObjectPermissionsFilter, )
+    permission_classes = (FourLevelObjectPermissions, )
+    serializer_class = ReadGroupSerializer
+
+    read_serializer_class = ReadGroupSerializer
 
 
 class ClassViewSet(viewsets.ModelViewSet):

@@ -125,7 +125,7 @@ class StudentMethodTests(TestCase):
 
         stu2 = factories.StudentFactory()
         factories.TakesFactory(student=stu2, course=cs1)
-        grp1.members.add(stu2)
+        factories.GroupMembershipFactory(group=grp1, student=stu2)
 
         self.assertEqual(stu2.get_group(cs1.pk), grp1)
 
@@ -402,10 +402,10 @@ class GroupMethodTests(TestCase):
         grp3 = factories.GroupFactory(course=course)
         self.assertEqual(grp3.number, course.NUMBERS_LIST[0])
 
-    def test_clean(self):
+    def test_number(self):
         # check number
-        from studentgrading.core.models import Group
-        grp1 = Group(name='hello_world', course=factories.CourseFactory())
+        course1 = factories.CourseFactory()
+        grp1 = factories.GroupFactory(course=course1)
         grp1.number = '1'
         with self.assertRaises(ValidationError) as cm:
             grp1.full_clean()
@@ -413,11 +413,95 @@ class GroupMethodTests(TestCase):
 
         grp1.number = 'B'
         grp1.save()
-        grp2 = Group(name='hello_china', course=grp1.course)
+        grp2 = factories.GroupFactory(course=course1)
         grp2.number = 'B'
         with self.assertRaises(ValidationError) as cm:
             grp2.full_clean()
         self.assertTrue(cm.exception.message_dict.get('number'))
+
+    def test_leader(self):
+        stu1 = factories.StudentFactory()
+        course1 = factories.CourseFactory()
+
+        # student not taking the course can not join group
+        with self.assertRaises(ValidationError) as cm:
+            factories.GroupFactory(course=course1, leader=stu1)
+        self.assertIn('leader', cm.exception.message_dict)
+
+        # after taking, student can
+        factories.TakesFactory(student=stu1, course=course1)
+        group1 = factories.GroupFactory(course=course1, leader=stu1)
+        self.assertTrue(course1.groups.filter(pk=group1.pk).exists())
+
+
+class GroupMembershipMethodTests(TestCase):
+
+    def test_save(self):
+        course1 = factories.CourseFactory()
+        group1 = factories.GroupFactory(course=course1)
+        stu1 = factories.StudentFactory()
+        stu2 = factories.StudentTakesCourseFactory(courses__course=course1)
+
+        factories.GroupMembershipFactory(student=stu2, group=group1)
+
+        with self.assertRaises(ValidationError) as cm:
+            factories.GroupMembershipFactory(student=stu1, group=group1)
+        self.assertIn('student', cm.exception.message_dict)
+
+        with self.assertRaises(ValidationError) as cm:
+            factories.GroupMembershipFactory(student=stu1, group=group1)
+        self.assertIn('student', cm.exception.message_dict)
+
+        group2 = factories.GroupFactory(course=course1)
+        with self.assertRaises(ValidationError) as cm:
+            factories.GroupMembershipFactory(student=stu1, group=group2)
+        self.assertIn('student', cm.exception.message_dict)
+
+
+class GroupPermsTests(TestCase):
+
+    def test_student_perms(self):
+        course1 = factories.CourseFactory()
+        group1 = factories.GroupFactory(course=course1)
+        stu1 = factories.StudentTakesCourseFactory(courses__course=course1)
+        stu2 = factories.StudentFactory()
+
+        # normal student has no perms
+        self.assertFalse(group1.has_perms_for_course_stu(stu2.user))
+
+        # course student has perms
+        self.assertTrue(group1.has_perms_for_course_stu(stu1.user))
+
+        # group leader has perms
+        self.assertTrue(group1.has_perms_for_leader(group1.leader.user))
+
+        # when no longer leader, has no leader perms
+        grp1_leader = group1.leader
+        group1.leader = stu1
+        group1.save()
+        self.assertFalse(group1.has_perms_for_leader(grp1_leader.user))
+        self.assertTrue(group1.has_perms_for_course_stu(grp1_leader.user))
+
+        # when no longer takes the course, no perms
+        course1.students.clear()
+        self.assertFalse(group1.has_perms_for_course_stu(stu1.user))
+        self.assertFalse(group1.has_perms_for_course_stu(grp1_leader.user))
+
+    def test_instructor_perms(self):
+        course1 = factories.CourseFactory()
+        group1 = factories.GroupFactory(course=course1)
+        inst1 = factories.InstructorFactory()
+
+        # normal inst has no perms
+        self.assertFalse(group1.has_perms_for_course_inst(inst1.user))
+
+        # course inst has perms
+        factories.TeachesFactory(instructor=inst1, course=course1)
+        self.assertTrue(group1.has_perms_for_course_inst(inst1.user))
+
+        # when no longer course inst, no perms
+        course1.instructors.clear()
+        self.assertFalse(group1.has_perms_for_course_inst(inst1.user))
 
 
 class CourseMethodTests(TestCase):
@@ -500,15 +584,15 @@ class CourseMethodTests(TestCase):
 
     def test_add_group(self):
         course = factories.CourseFactory()
-        stu = factories.StudentFactory()
-        self.assertEqual(course.group_set.count(), 0)
+        stu = factories.StudentTakesCourseFactory(courses__course=course)
+        self.assertEqual(course.groups.count(), 0)
 
         course.add_group(
             members=(stu,),
             name='Hello_world',
-            leader=factories.StudentFactory(),
+            leader=factories.StudentTakesCourseFactory(courses__course=course),
         )
-        self.assertEqual(course.group_set.count(), 1)
+        self.assertEqual(course.groups.count(), 1)
 
     def test_add_assignment(self):
         course = factories.CourseFactory()
@@ -531,6 +615,20 @@ class CourseMethodTests(TestCase):
             cs1.get_students_not_in_any_group(),
             [repr(stu3)]
         )
+
+    def test_has_group_including(self):
+        course1 = factories.CourseFactory()
+        stu1 = factories.StudentTakesCourseFactory(courses__course=course1)
+        stu2 = factories.StudentTakesCourseFactory(courses__course=course1)
+        stu3 = factories.StudentTakesCourseFactory(courses__course=course1)
+
+        factories.GroupFactory(leader=stu1, course=course1)
+        group1 = factories.GroupFactory(course=course1)
+        factories.GroupMembershipFactory(group=group1, student=stu2)
+
+        self.assertTrue(course1.has_group_including(stu1))
+        self.assertTrue(course1.has_group_including(stu2))
+        self.assertFalse(course1.has_group_including(stu3))
 
 
 class CoursePermsTests(TestCase):
@@ -1162,6 +1260,14 @@ class ModelDiffMixinTests(TestCase):
         self.stu = factories.StudentFactory()
         self.cls = factories.ClassFactory()
 
+    def test_before_create(self):
+        stu = Student(user=factories.UserFactory(), name='LYYF',
+                      s_id='2012211165', s_class=factories.ClassFactory())
+        self.assertFalse(stu.changed_fields)
+        self.assertFalse(stu.get_old_field('name'))
+        self.assertFalse(stu.pk)
+        self.assertTrue(stu.name)
+
     def test_fields_change(self):
         stu = factories.StudentFactory()
         self.assertEqual(stu.has_changed, False)
@@ -1182,3 +1288,9 @@ class ModelDiffMixinTests(TestCase):
         stu.save()
         self.assertEqual(stu.has_changed, False)
         self.assertFalse(stu.changed_fields)
+
+    def test_m2m_field(self):
+        cls1 = factories.ClassFactory()
+        stu1 = factories.StudentFactory()
+
+        cls1.students.add(stu1)

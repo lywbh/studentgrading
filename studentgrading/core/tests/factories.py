@@ -11,6 +11,7 @@ from studentgrading.core.models import (
     CourseAssignment, Course, UserProfile, Student, Instructor,
     Class, Takes, Teaches, Group, ContactInfoType, ContactInfo,
     StudentContactInfo, InstructorContactInfo, GroupContactInfo,
+    GroupMembership,
 )
 
 
@@ -136,7 +137,6 @@ class TakesFactory(factory.django.DjangoModelFactory):
 
     student = factory.SubFactory(StudentFactory)
     course = factory.SubFactory(CourseFactory)
-    grade = random.randint(60, 100)
 
 
 class StudentTakesCourseFactory(StudentFactory):
@@ -179,6 +179,8 @@ class GroupFactory(factory.django.DjangoModelFactory):
 
     name = factory.Faker('word')
     course = factory.SubFactory(CourseFactory)
+    leader = factory.SubFactory(StudentTakesCourseFactory,
+                                courses__course=factory.SelfAttribute('..course'))
 
     @factory.post_generation
     def members(self, create, extracted, **kwargs):
@@ -186,4 +188,12 @@ class GroupFactory(factory.django.DjangoModelFactory):
             return
         if extracted:
             for member in extracted:
-                self.members.add(member)
+                GroupMembership.objects.create(group=self, student=member)
+
+
+class GroupMembershipFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = GroupMembership
+
+    student = factory.SubFactory(StudentFactory)
+    group = factory.SubFactory(GroupFactory)

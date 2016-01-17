@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import unittest
+import json
+import decimal
 
 from django.core.urlresolvers import reverse
 from django.contrib.auth import get_user_model
@@ -10,14 +12,20 @@ from rest_framework.test import APIClient
 
 from . import factories
 from ..models import (
-    Student, Instructor, Course, Takes,
-    has_four_level_perm,
+    Student, Instructor, Course, Takes, Group,
 )
 
 User = get_user_model()
 
 skip_seperate_tests = True
 skip_seperate_tests_reason = "This test can only pass when tested separately."
+
+print_api_response = True
+print_api_response_reason = "Print response to write docs."
+
+
+def get_formatted_json(data):
+    return json.dumps(data, indent=2)
 
 
 def get_course_url(course):
@@ -189,6 +197,21 @@ class StudentAPITests(APITestUtilsMixin, APITestCase):
             response = self.delete_student(stu)
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    @unittest.skipIf(print_api_response, print_api_response_reason)
+    def test_print_get_student(self):
+        course1 = factories.CourseFactory()
+        cls1 = factories.ClassFactory()
+        stu1 = factories.StudentTakesCourseFactory(s_class=cls1, courses__course=course1)
+        stu2 = factories.StudentFactory(s_class=cls1)
+        stu3 = factories.StudentTakesCourseFactory(courses__course=course1)
+
+        self.force_authenticate_user(stu1.user)
+        print(get_formatted_json(self.get_student_list().data))
+
+        inst1 = factories.InstructorFactory()
+        self.force_authenticate_user(inst1.user)
+        print(get_formatted_json(self.get_student_list().data))
+
 
 class InstructorAPITests(APITestUtilsMixin, APITestCase):
 
@@ -343,7 +366,6 @@ class StudentCoursesAPITests(APITestUtilsMixin, APITestCase):
 
     def test_student_access_stu_course(self):
         course1 = factories.CourseFactory()
-        course2 = factories.CourseFactory()
         stu1 = factories.StudentFactory()
         stu2 = factories.StudentFactory()
         takes1_1 = factories.TakesFactory(course=course1, student=stu1)
@@ -363,7 +385,7 @@ class StudentCoursesAPITests(APITestUtilsMixin, APITestCase):
         response = self.delete_student_course(stu1, takes1_1)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-        # can GET others
+        # can GET course students'
         response = self.get_student_course_detail(stu2, takes2_1)
         self.assertTrue(self.is_course_stu_fields(response.data))
         # cannot POST, PUT, PATCH, DELETE others
@@ -399,10 +421,10 @@ class StudentCoursesAPITests(APITestUtilsMixin, APITestCase):
         # can GET, PATCH, PUT, DELETE its course's takes
         for takes in Takes.objects.filter(course=course1):
             response = self.put_student_course(takes.student, takes, dict(
-                course=get_course_url(course1), grade=80,
+                course=get_course_url(course1), grade='85.5',
             ))
             self.assertEqual(response.status_code, status.HTTP_200_OK)
-            self.assertEqual(Takes.objects.get(pk=takes.pk).grade, 80)
+            self.assertEqual(Takes.objects.get(pk=takes.pk).grade, decimal.Decimal('85.5'))
 
             response = self.patch_student_course(takes.student, takes, dict(
                 grade=70,
@@ -443,6 +465,18 @@ class StudentCoursesAPITests(APITestUtilsMixin, APITestCase):
             course=get_course_url(course2),
         ))
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @unittest.skipIf(print_api_response, print_api_response_reason)
+    def test_print_takes(self):
+        course1 = factories.CourseFactory()
+        course2 = factories.CourseFactory()
+        stu1 = factories.StudentFactory()
+        stu2 = factories.StudentFactory()
+        takes1_1 = factories.TakesFactory(course=course1, student=stu1)
+        takes1_2 = factories.TakesFactory(course=course2, student=stu1)
+
+        self.force_authenticate_user(stu1.user)
+        print(get_formatted_json(self.get_student_course_list(stu1).data))
 
 
 class InstructorCoursesAPITests(APITestUtilsMixin, APITestCase):
@@ -615,7 +649,7 @@ class CourseAITests(APITestUtilsMixin, APITestCase):
     def is_course_inst_fields(self, course_dict):
         return (set(course_dict.keys()) ==
                 {'url', 'id', 'title', 'year', 'semester', 'description', 'min_group_size',
-                 'max_group_size', 'instructors'})
+                 'max_group_size', 'instructors', 'groups'})
 
     def is_normal_inst_fields(self, course_dict):
         return (set(course_dict.keys()) ==
@@ -627,6 +661,61 @@ class CourseAITests(APITestUtilsMixin, APITestCase):
     def is_normal_stu_fields(self, course_dict):
         return (set(course_dict.keys()) ==
                 {'url', 'id', 'title', 'year', 'semester', 'description', })
+
+    def post_group(self, course, group_dict):
+        return self.client.post(reverse('api:course-detail', kwargs={'pk': course.pk}) + 'add_group/', group_dict)
+
+    def get_group_list(self, course):
+        return self.client.get(reverse('api:course-group-list', kwargs={'parent_lookup_course': course.pk}))
+
+    def get_group_detail(self, course, group):
+        return self.client.get(reverse('api:course-group-detail', kwargs={'parent_lookup_course': course.pk,
+                                                                          'pk': group.pk}))
+
+    def is_group_fields(self, group_dict):
+        return (set(group_dict.keys()) ==
+                {'url', 'id', 'course', 'number', 'name', 'leader', 'members', })
+
+    @unittest.skipIf(print_api_response, print_api_response_reason)
+    def test_print_get(self):
+        course1 = factories.CourseFactory()
+        course2 = factories.CourseFactory()
+        stu1 = factories.StudentTakesCourseFactory(courses__course=course1)
+        inst1 = factories.InstructorTeachesCourseFactory(courses__course=course1)
+
+        factories.InstructorTeachesCourseFactory(courses__course=course1)
+        factories.GroupFactory(course=course1)
+        factories.GroupFactory(course=course1)
+
+        # GET a list of courses, including taking/giving or not course
+        self.force_authenticate_user(stu1.user)
+        response = self.get_course_list()
+        print(get_formatted_json(response.data))
+
+        # GET taking/giving course
+        self.force_authenticate_user(stu1.user)
+        response = self.get_course_detail(course2)
+        print(get_formatted_json(response.data))
+
+        # GET not taking/giving course
+        self.force_authenticate_user(inst1.user)
+        response = self.get_course_detail(course1)
+        print(get_formatted_json(response.data))
+
+    @unittest.skipIf(print_api_response, print_api_response_reason)
+    def test_print_post(self):
+        inst1 = factories.InstructorFactory()
+        stu1 = factories.StudentFactory()
+
+        print(get_formatted_json(dict(
+            title='Software Engineering', yaer='2015',
+            semester='AUT', description='Given by dxiao.',
+            instructors=[get_instructor_url(inst1)]
+        )))
+
+        print(get_formatted_json(dict(
+            student=get_course_url(stu1)
+        )))
 
     def test_get(self):
         stu1 = factories.StudentFactory()
@@ -763,7 +852,7 @@ class CourseAITests(APITestUtilsMixin, APITestCase):
         # inst can change after taking the course
         factories.TeachesFactory(instructor=inst1, course=course1)
         response = self.put_course(course1, dict(
-            title='foobar', year='2007', semester='Spring',
+            description="foobar", min_group_size=1, max_group_size=4,
         ))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -791,6 +880,145 @@ class CourseAITests(APITestUtilsMixin, APITestCase):
         factories.TeachesFactory(instructor=inst1, course=course1)
         response = self.delete_course(course1)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    @unittest.skipIf(skip_seperate_tests, skip_seperate_tests_reason)
+    def test_post_group(self):
+        stu1 = factories.StudentFactory()
+        inst1 = factories.InstructorFactory()
+        course1 = factories.CourseFactory()
+
+        # stu not in course cannot
+        self.force_authenticate_user(stu1.user)
+        response = self.post_group(course1, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # inst not in course cannnot
+        self.force_authenticate_user(inst1.user)
+        response = self.post_group(course1, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # stu already in a group cannot
+        group1 = factories.GroupFactory(course=course1)
+        factories.TakesFactory(student=stu1, course=course1)
+        factories.GroupMembershipFactory(student=stu1, group=group1)
+        self.force_authenticate_user(stu1.user)
+        response = self.post_group(course1, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # course inst can
+        factories.TeachesFactory(instructor=inst1, course=course1)
+        stu2 = factories.StudentTakesCourseFactory(courses__course=course1)
+        self.force_authenticate_user(inst1.user)
+        response = self.post_group(course1, dict(
+            name='success', leader=get_student_url(stu2),
+        ))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # student not in a group can
+        stu3 = factories.StudentTakesCourseFactory(courses__course=course1)
+        self.force_authenticate_user(stu3.user)
+        response = self.post_group(course1, dict(
+            name='success', leader=get_student_url(stu3), members=[],
+        ))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # test add members
+        stu4 = factories.StudentTakesCourseFactory(courses__course=course1)
+        stu5 = factories.StudentTakesCourseFactory(courses__course=course1)
+        stu6 = factories.StudentTakesCourseFactory(courses__course=course1)
+        self.force_authenticate_user(stu4.user)
+        response = self.post_group(course1, dict(
+            name='success', leader=get_student_url(stu4),
+            members=[get_student_url(stu5), get_student_url(stu6)]
+        ))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        group2 = course1.groups.get(leader=stu4)
+        self.assertEqual(group2.members.count(), 2)
+
+    def test_stu_get_group(self):
+        course1 = factories.CourseFactory()
+        group1 = factories.GroupFactory(course=course1)
+        stu1 = factories.StudentFactory()
+
+        for i in range(5):
+            factories.GroupFactory()
+
+        # normal student cannot get
+        self.force_authenticate_user(stu1.user)
+        response = self.get_group_list(course1)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+        response = self.get_group_detail(course1, group1)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        # course stu can get
+        factories.TakesFactory(student=stu1, course=course1)
+        response = self.get_group_list(course1)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        response = self.get_group_detail(course1, group1)
+        self.assertTrue(self.is_group_fields(response.data))
+
+    def test_inst_get_group(self):
+        course1 = factories.CourseFactory()
+        group1 = factories.GroupFactory(course=course1)
+        inst1 = factories.InstructorFactory()
+
+        for i in range(5):
+            factories.GroupFactory()
+
+        # normal inst cannot
+        self.force_authenticate_user(inst1.user)
+        response = self.get_group_list(course1)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+        response = self.get_group_detail(course1, group1)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        # course inst can
+        factories.TeachesFactory(instructor=inst1, course=course1)
+
+        response = self.get_group_list(course1)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        response = self.get_group_detail(course1, group1)
+        self.assertTrue(self.is_group_fields(response.data))
+
+    @unittest.skipIf(print_api_response, print_api_response_reason)
+    def test_print_post_group(self):
+        course1 = factories.CourseFactory()
+        inst1 = factories.InstructorTeachesCourseFactory(courses__course=course1)
+        stu1 = factories.StudentFactory()
+        stu2 = factories.StudentFactory()
+        stu3 = factories.StudentFactory()
+
+        self.force_authenticate_user(inst1.user)
+        print(get_formatted_json(dict(name='success', leader=get_student_url(stu1),
+              members=[get_student_url(stu2), get_student_url(stu3)])))
+
+    @unittest.skipIf(print_api_response, print_api_response_reason)
+    def test_print_get_group(self):
+        course1 = factories.CourseFactory()
+        group1 = factories.GroupFactory(course=course1)
+        group2 = factories.GroupFactory(course=course1)
+        stu1 = factories.StudentTakesCourseFactory(courses__course=course1)
+
+        for i in range(2):
+            member1 = factories.StudentTakesCourseFactory(courses__course=course1)
+            factories.GroupMembershipFactory(student=member1, group=group1)
+            member2 = factories.StudentTakesCourseFactory(courses__course=course1)
+            factories.GroupMembershipFactory(student=member2, group=group2)
+
+        # get list
+        self.force_authenticate_user(stu1.user)
+        print(get_formatted_json(self.get_group_list(course1).data))
+
+        # get group
+        print(get_formatted_json(self.get_group_detail(course1, group1).data))
 
 
 class CourseInstructorsAPITests(APITestUtilsMixin, APITestCase):
@@ -1061,10 +1289,11 @@ class CourseStudentsAPITests(APITestUtilsMixin, APITestCase):
         # course inst can POST
         factories.TeachesFactory(instructor=inst1, course=course1)
         response = self.post_course_student(course1, dict(
-            student=get_student_url(stu1),
+            student=get_student_url(stu1), grade=80,
         ))
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(course1.students.count(), 1)
+        self.assertEqual(stu1.takes.all()[0].grade, decimal.Decimal('80'))
 
     def test_change(self):
         stu1 = factories.StudentFactory()
@@ -1122,3 +1351,206 @@ class CourseStudentsAPITests(APITestUtilsMixin, APITestCase):
         response = self.delete_course_student(course1, takes1_1)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
+    @unittest.skipIf(print_api_response, print_api_response_reason)
+    def test_print_get(self):
+        course1 = factories.CourseFactory()
+        inst1 = factories.InstructorTeachesCourseFactory(courses__course=course1)
+        stu1 = factories.StudentTakesCourseFactory(courses__course=course1)
+        stu2 = factories.StudentTakesCourseFactory(courses__course=course1)
+
+        self.force_authenticate_user(stu1.user)
+        print(get_formatted_json(self.get_course_student_list(course1).data))
+
+        self.force_authenticate_user(inst1.user)
+        print(get_formatted_json(self.get_course_student_list(course1).data))
+
+
+class GroupAPITests(APITestUtilsMixin, APITestCase):
+
+    def get_group_list(self):
+        return self.client.get(reverse('api:group-list'))
+
+    def get_group_detail(self, group):
+        return self.client.get(reverse('api:group-detail', kwargs={'pk': group.pk}))
+
+    def patch_group(self, group, data_dict):
+        return self.client.patch(reverse('api:group-detail', kwargs={'pk': group.pk}), data_dict)
+
+    def delete_group(self, group):
+        return self.client.delete(reverse('api:group-detail', kwargs={'pk': group.pk}))
+
+    def is_group_fields(self, group_dict):
+            return (set(group_dict.keys()) ==
+                    {'url', 'id', 'course', 'number', 'name', 'leader', 'members', })
+
+    def test_stu_get_group(self):
+        course1 = factories.CourseFactory()
+        group1 = factories.GroupFactory(course=course1)
+        stu1 = factories.StudentFactory()
+
+        for i in range(5):
+            factories.GroupFactory()
+
+        # normal student cannot get
+        self.force_authenticate_user(stu1.user)
+        response = self.get_group_list()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+        response = self.get_group_detail(group1)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        # course stu can get
+        factories.TakesFactory(student=stu1, course=course1)
+        response = self.get_group_list()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        response = self.get_group_detail(group1)
+        self.assertTrue(self.is_group_fields(response.data))
+
+    def test_inst_get_group(self):
+        course1 = factories.CourseFactory()
+        group1 = factories.GroupFactory(course=course1)
+        inst1 = factories.InstructorFactory()
+
+        for i in range(5):
+            factories.GroupFactory()
+
+        # normal inst cannot
+        self.force_authenticate_user(inst1.user)
+        response = self.get_group_list()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+        response = self.get_group_detail(group1)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        # course inst can
+        factories.TeachesFactory(instructor=inst1, course=course1)
+
+        response = self.get_group_list()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        response = self.get_group_detail(group1)
+        self.assertTrue(self.is_group_fields(response.data))
+
+    @unittest.skipIf(skip_seperate_tests, skip_seperate_tests_reason)
+    def test_stu_change_group(self):
+        course1 = factories.CourseFactory()
+        group1 = factories.GroupFactory(course=course1)
+        stu1 = factories.StudentFactory()
+
+        # normal student cannot
+        self.force_authenticate_user(stu1.user)
+        response = self.patch_group(group1, {})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        # course student cannot
+        factories.TakesFactory(student=stu1, course=course1)
+        response = self.patch_group(group1, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # group members cannot
+        factories.GroupMembershipFactory(student=stu1, group=group1)
+        response = self.patch_group(group1, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # group leader can
+        grp1_leader = group1.leader
+        self.force_authenticate_user(grp1_leader.user)
+        response = self.patch_group(group1, dict(
+            name='foobar',
+        ))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        group1 = Group.objects.get(pk=group1.pk)
+        self.assertEqual(group1.name, 'foobar')
+
+    @unittest.skipIf(skip_seperate_tests, skip_seperate_tests_reason)
+    def test_change_leader(self):
+        course1 = factories.CourseFactory()
+        stu1 = factories.StudentTakesCourseFactory(courses__course=course1)
+        stu2 = factories.StudentTakesCourseFactory(courses__course=course1)
+        group1 = factories.GroupFactory(course=course1, leader=stu1)
+        factories.GroupMembershipFactory(student=stu2, group=group1)
+
+        # member cannot change
+        self.force_authenticate_user(stu2.user)
+        response = self.patch_group(group1, dict(
+            leader=get_student_url(stu2),
+        ))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # leader can change
+        self.force_authenticate_user(stu1.user)
+        response = self.patch_group(group1, dict(
+            leader=get_student_url(stu2),
+        ))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        group1 = Group.objects.get(pk=group1.pk)
+        self.assertEqual(group1.leader, stu2)
+        self.assertIn(stu1, group1.members.all())
+        self.assertNotIn(stu2, group1.members.all())
+
+        # course inst can change
+        inst1 = factories.InstructorTeachesCourseFactory(courses__course=course1)
+        self.force_authenticate_user(inst1.user)
+        response = self.patch_group(group1, dict(
+            leader=get_student_url(stu1),
+        ))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        group1 = Group.objects.get(pk=group1.pk)
+        self.assertEqual(group1.leader, stu1)
+        self.assertIn(stu2, group1.members.all())
+        self.assertNotIn(stu1, group1.members.all())
+
+        # stay unchanged
+        response = self.patch_group(group1, dict(
+            leader=get_student_url(stu1),
+        ))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        group1 = Group.objects.get(pk=group1.pk)
+        self.assertEqual(group1.leader, stu1)
+
+    def test_delete_group(self):
+        course1 = factories.CourseFactory()
+        stu1 = factories.StudentTakesCourseFactory(courses__course=course1)
+        inst1 = factories.InstructorTeachesCourseFactory(courses__course=course1)
+        group1 = factories.GroupFactory(leader=stu1, course=course1)
+
+        # leader cannot delete
+        self.force_authenticate_user(stu1.user)
+        response = self.delete_group(group1)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        inst2 = factories.InstructorFactory()
+        # non-course inst cannot
+        self.force_authenticate_user(inst2.user)
+        response = self.delete_group(group1)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        # course inst can delete
+        self.force_authenticate_user(inst1.user)
+        response = self.delete_group(group1)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    @unittest.skipIf(print_api_response, print_api_response_reason)
+    def test_print_get_group(self):
+        course1 = factories.CourseFactory()
+        group1 = factories.GroupFactory(course=course1)
+        group2 = factories.GroupFactory(course=course1)
+        stu1 = factories.StudentTakesCourseFactory(courses__course=course1)
+
+        for i in range(2):
+            member1 = factories.StudentTakesCourseFactory(courses__course=course1)
+            factories.GroupMembershipFactory(student=member1, group=group1)
+            member2 = factories.StudentTakesCourseFactory(courses__course=course1)
+            factories.GroupMembershipFactory(student=member2, group=group2)
+
+        # get list
+        self.force_authenticate_user(stu1.user)
+        print(get_formatted_json(self.get_group_list().data))
+
+        # get group
+        print(get_formatted_json(self.get_group_detail(group1).data))

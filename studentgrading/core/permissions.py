@@ -2,6 +2,7 @@
 from django.contrib.auth import get_user_model
 
 from rest_framework import permissions
+from rest_framework.exceptions import PermissionDenied
 
 from .models import (
     get_role_of, Student, Instructor, Course, has_four_level_perm,
@@ -11,26 +12,6 @@ from django.http import Http404
 
 SAFE_METHODS = ('GET', 'HEAD', 'OPTIONS')
 User = get_user_model()
-
-
-class BaseObjectPermissions(permissions.DjangoObjectPermissions):
-    perms_map = {
-        'GET': ['%(app_label)s.view_%(model_name)s'],
-        'OPTIONS': ['%(app_label)s.view_%(model_name)s'],
-        'HEAD': ['%(app_label)s.view_%(model_name)s'],
-        'POST': ['%(app_label)s.add_%(model_name)s'],
-        'PUT': ['%(app_label)s.change_%(model_name)s'],
-        'PATCH': ['%(app_label)s.change_%(model_name)s'],
-        'DELETE': ['%(app_label)s.delete_%(model_name)s'],
-    }
-
-
-class StudentObjectPermissions(BaseObjectPermissions):
-    pass
-
-
-class StudentCoursesObjectPermissions(BaseObjectPermissions):
-    pass
 
 
 class FourLevelObjectPermissions(permissions.BasePermission):
@@ -143,4 +124,38 @@ class FourLevelObjectPermissions(permissions.BasePermission):
             # Has read permissions.
             return False
 
+        return True
+
+
+# -----------------------------------------------------------------------------
+# Custom Permissions
+# -----------------------------------------------------------------------------
+class CreateGroupPermission(permissions.BasePermission):
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        if user.is_staff:
+            return True
+
+        user_role = get_role_of(user)
+        if isinstance(user_role, Instructor):
+            user_instructor = user_role
+            course = Course.objects.get(pk=obj.pk)
+            if not course.is_given_by(user_instructor):
+                raise PermissionDenied(
+                    detail="Only course instructor is able to create group for this course."
+                )
+        elif isinstance(user_role, Student):
+            user_student = user_role
+            course = Course.objects.get(pk=obj.pk)
+            if not course.is_taken_by(user_student):
+                raise PermissionDenied(
+                    detail="Only course student can create group for this course."
+                )
+            elif course.has_group_including(user_student):
+                raise PermissionDenied(
+                    detail="You have been in a group of this course."
+                )
+        else:
+            return False
         return True

@@ -5,8 +5,8 @@ from rest_framework import serializers
 from rest_framework.relations import reverse
 
 from .models import (
-    Student, Class, Course, Takes, Teaches,
-    Instructor, Teaches,
+    Student, Class, Course, Takes,
+    Instructor, Teaches, Group, GroupMembership,
     has_four_level_perm,
     get_role_of,
 )
@@ -41,6 +41,42 @@ class ChildHyperlinkedIdentityField(serializers.HyperlinkedIdentityField):
             'pk': obj.pk,
         }
         return reverse(view_name, kwargs=url_kwargs, request=request, format=format)
+
+
+class ChildHyperlinkedRelatedField(serializers.HyperlinkedRelatedField):
+
+    def __init__(self, *args, **kwargs):
+        self.parent_field_name = kwargs.pop('parent_field_name', None)
+        self.parent_query_lookup = kwargs.pop('parent_query_lookup', None)
+        super(ChildHyperlinkedRelatedField, self).__init__(*args, **kwargs)
+
+    def get_parent_field_name(self):
+        assert self.parent_field_name is not None, (
+            "'%s' should either include a `parent_field_name` attribute, "
+            "or override the `get_parent_field_name()` method."
+            % self.__class__.__name__
+        )
+        return self.parent_field_name
+
+    def get_parent_query_lookup(self):
+        if not self.parent_query_lookup:
+            return 'parent_lookup_{0}'.format(self.get_parent_field_name())
+        return self.parent_query_lookup
+
+    def get_url(self, obj, view_name, request, format):
+        url_kwargs = {
+            self.get_parent_query_lookup(): getattr(obj, self.get_parent_field_name()).pk,
+            'pk': obj.pk,
+        }
+        return reverse(view_name, kwargs=url_kwargs, request=request, format=format)
+
+    def get_object(self, view_name, view_args, view_kwargs):
+        parent_query_lookup = self.get_parent_query_lookup()
+        lookup_kwargs = {
+           self.get_parent_field_name(): view_kwargs[parent_query_lookup],
+           'pk': view_kwargs['pk']
+        }
+        return self.get_queryset().get(**lookup_kwargs)
 
 
 # -----------------------------------------------------------------------------
@@ -251,10 +287,16 @@ class CourseSerializer(serializers.HyperlinkedModelSerializer):
         view_name='api:instructor-detail',
     )
 
+    groups = serializers.HyperlinkedRelatedField(
+        many=True,
+        read_only=True,
+        view_name='api:group-detail',
+    )
+
     class Meta:
         model = Course
         fields = ('url', 'id', 'title', 'year', 'semester', 'description',
-                  'min_group_size', 'max_group_size', 'instructors')
+                  'min_group_size', 'max_group_size', 'instructors', 'groups')
         extra_kwargs = {
             'url': {'view_name': 'api:course-detail'},
         }
@@ -273,6 +315,7 @@ class CourseSerializer(serializers.HyperlinkedModelSerializer):
         if not has_four_level_perm('core.view_course', user, instance):
             del ret['min_group_size']
             del ret['max_group_size']
+            del ret['groups']
 
             if not has_four_level_perm('core.view_course_advanced', user, instance):
                 del ret['instructors']
@@ -281,10 +324,19 @@ class CourseSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class ReadCourseSerializer(CourseSerializer):
+    """
     instructors = serializers.HyperlinkedIdentityField(
         source='teaches',
         view_name='api:course-instructor-list',
         lookup_url_kwarg='parent_lookup_course',
+    )
+    """
+    instructors = ChildHyperlinkedRelatedField(
+        source='teaches',
+        many=True,
+        read_only=True,
+        view_name='api:course-instructor-detail',
+        parent_field_name='course',
     )
 
     class Meta(CourseSerializer.Meta):
@@ -329,7 +381,7 @@ class CourseStudentsSerializer(TakesSerializer):
     )
 
     class Meta(TakesSerializer.Meta):
-        pass
+        fields = ('url', 'id', 'course', 'student', 'grade')
 
 
 class ReadCourseStudentsSerializer(CourseStudentsSerializer):
@@ -340,6 +392,91 @@ class ReadCourseStudentsSerializer(CourseStudentsSerializer):
 class BaseWriteCourseStudentsSerializer(CourseStudentsSerializer):
     class Meta(CourseStudentsSerializer.Meta):
         fields = ('url', 'id', 'grade')
+
+
+# -----------------------------------------------------------------------------
+# Group Serializers (groups/, courses/{pk}/groups/)
+# -----------------------------------------------------------------------------
+class GroupSerializer(serializers.HyperlinkedModelSerializer):
+
+    class Meta:
+        model = Group
+        fields = ('url', 'id', 'number', 'name', 'course', 'leader', 'members', )
+        extra_kwargs = {
+            'url': {'view_name': 'api:group-detail'},
+            'course': {'view_name': 'api:course-detail'},
+            'leader': {'view_name': 'api:student-detail'},
+        }
+
+
+class CreateGroupSerializer(GroupSerializer):
+    """
+    Serializer for create a group.
+    """
+    members = serializers.HyperlinkedRelatedField(
+        many=True,
+        required=False,
+        queryset=Student.objects.all(),
+        view_name='api:student-detail',
+    )
+
+    class Meta(GroupSerializer.Meta):
+        read_only_fields = ('number', )
+
+    def create(self, validated_data):
+        """
+        Accept student urls as parameters to `members` and `leader`.
+        """
+        members_data = validated_data.pop('members', None)
+        group = Group.objects.create(**validated_data)
+        if members_data:
+            for member in members_data:
+                GroupMembership.objects.create(student=member, group=group)
+        return group
+
+
+class ReadGroupSerializer(GroupSerializer):
+
+    members = serializers.HyperlinkedRelatedField(
+        many=True,
+        read_only=True,
+        view_name='api:group-detail',
+    )
+
+    class Meta(GroupSerializer.Meta):
+        read_only_fields = ('number', 'name', 'course', 'leader', 'members', )
+
+
+class WriteGroupSerializer(GroupSerializer):
+
+    members = serializers.HyperlinkedRelatedField(
+        many=True,
+        read_only=True,
+        view_name='api:group-detail',
+    )
+
+    class Meta(GroupSerializer.Meta):
+        read_only_fields = ('number', 'course', 'members', )
+
+    def update(self, instance, validated_data):
+        """
+        Add custom actions.
+
+        1. Change leader: after successful changing, pre-leader becomes member, pre-member
+        becomes leader.
+        """
+        leader = validated_data.pop('leader', None)
+        group = super(WriteGroupSerializer, self).update(instance, validated_data)
+        if leader:
+            old_leader = group.leader
+            if old_leader.pk == leader.pk:
+                return group
+
+            group.leader = leader
+            group.save()
+            group.group_memberships.get(student=leader).delete()
+            GroupMembership.objects.create(student=old_leader, group=group)
+        return group
 
 
 class ClassSerializer(serializers.HyperlinkedModelSerializer):
