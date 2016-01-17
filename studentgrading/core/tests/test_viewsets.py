@@ -45,6 +45,30 @@ class APITestUtilsMixin(object):
         self.client.force_authenticate(user=user)
 
 
+class MyselfAPITests(APITestUtilsMixin, APITestCase):
+
+    def get_myself(self):
+        return self.client.get(reverse('api:myself'))
+
+    def get(self):
+        stu1 = factories.StudentFactory()
+        self.force_authenticate_user(stu1.user)
+        response = self.get_myself()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['url'], reverse('api:student-detail', kwargs=dict(pk=stu1.pk)))
+
+        inst1 = factories.InstructorFactory()
+        self.force_authenticate_user(inst1.user)
+        response = self.get_myself()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['url'], reverse('api:instructor-detail', kwargs=dict(pk=inst1.pk)))
+
+        admin = User.objects.create_superuser(username='foobar', password='foobar')
+        self.force_authenticate_user(admin)
+        response = self.get_myself()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
 class StudentAPITests(APITestUtilsMixin, APITestCase):
 
     def get_student_list(self):
@@ -799,14 +823,6 @@ class CourseAITests(APITestUtilsMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(inst1.courses.count(), 1)
 
-        # POST without instructors
-        response = self.post_course(dict(
-            title='foobar', year='2006', semester='SPG', description='',
-        ))
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(Course.objects.count(), 2)
-        self.assertEqual(inst1.courses.count(), 1)
-
         # test required field
         response = self.post_course(dict(
             title='foobar',
@@ -835,6 +851,17 @@ class CourseAITests(APITestUtilsMixin, APITestCase):
         self.force_authenticate_user(stu1.user)
         response = self.post_course({})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @unittest.skipIf(skip_seperate_tests, skip_seperate_tests_reason)
+    def test_post_with_instructors(self):
+        inst1 = factories.InstructorFactory()
+
+        self.force_authenticate_user(inst1.user)
+        response = self.post_course(dict(
+            title='foobar', year='2007', semester='AUT', description='',
+        ))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(Course.objects.filter(instructors=inst1).exists())
 
     def test_change(self):
         stu1 = factories.StudentFactory()

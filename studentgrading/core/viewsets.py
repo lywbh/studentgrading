@@ -3,6 +3,7 @@ from rest_framework import viewsets, filters, mixins, status, generics
 from rest_framework.response import Response
 from rest_framework.relations import reverse
 from rest_framework.decorators import detail_route, list_route
+from rest_framework.views import APIView
 
 from rest_framework_extensions.mixins import NestedViewSetMixin
 from guardian.shortcuts import get_objects_for_user
@@ -226,6 +227,20 @@ class FourLevelPermNestedModelViewSet(FourLevelPermCreateModelMixin,
                                       FourLevelPermDestroyModelMixin,
                                       FourLevelPermNestedGenericViewSet):
     pass
+
+
+class Myself(APIView):
+
+    def get(self, request, format=None):
+        user_role = get_role_of(request.user)
+        if isinstance(user_role, Student):
+            url = reverse('api:student-detail', kwargs=dict(pk=user_role.pk))
+        elif isinstance(user_role, Instructor):
+            url = reverse('api:instructor-detail', kwargs=dict(pk=user_role.pk))
+        else:
+            return Response(dict(detail="You are not a student or instructor."), status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(dict(url=url), status=status.HTTP_200_OK)
 
 
 # -----------------------------------------------------------------------------

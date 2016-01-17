@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from django.conf.urls import url, include, patterns
 
+from rest_framework.urlpatterns import format_suffix_patterns
 from rest_framework_extensions.routers import ExtendedDefaultRouter
 
 from . import viewsets as core_viewsets
@@ -46,3 +47,11 @@ urlpatterns = patterns(
     '',
     url(r'^', include(router.urls)),
 )
+
+myself_urlpatterns = patterns(
+    '',
+    url(r'^myself/$', core_viewsets.Myself.as_view(), name='myself'),
+)
+myself_urlpatterns = format_suffix_patterns(myself_urlpatterns)
+
+urlpatterns += myself_urlpatterns

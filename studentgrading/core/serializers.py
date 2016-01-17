@@ -307,6 +307,16 @@ class CourseSerializer(serializers.HyperlinkedModelSerializer):
         if instructors_data:
             for instructor in instructors_data:
                 Teaches.objects.create(instructor=instructor, course=course)
+        else:
+            # if no instructors set, add user to course instructors
+            if hasattr(self, 'context'):
+                user = self.context['request'].user
+                user_role = get_role_of(user)
+                if isinstance(user_role, Instructor):
+                    user_inst = user_role
+                    if not course.is_given_by(user_inst):
+                        Teaches.objects.create(instructor=user_inst, course=course)
+
         return course
 
     def to_representation(self, instance):
