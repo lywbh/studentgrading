@@ -41,6 +41,7 @@ def get_instructor_url(instructor):
 
 
 class APITestUtilsMixin(object):
+
     def force_authenticate_user(self, user):
         self.client.force_authenticate(user=user)
 
@@ -341,9 +342,6 @@ class InstructorAPITests(APITestUtilsMixin, APITestCase):
 
 
 class StudentCoursesAPITests(APITestUtilsMixin, APITestCase):
-
-    def setUp(self):
-        self.admin = User.objects.create_superuser(username='admin', password='sep2015')
 
     def get_student_course_list(self, stu):
         return self.client.get(reverse('api:student-course-list', kwargs={'parent_lookup_student': stu.pk}))
@@ -888,6 +886,10 @@ class CourseAITests(APITestUtilsMixin, APITestCase):
             description="foobar", min_group_size=1, max_group_size=4,
         ))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        course1 = Course.objects.get(pk=course1.pk)
+        self.assertEqual(course1.description, "foobar")
+        self.assertEqual(course1.min_group_size, 1)
+        self.assertEqual(course1.max_group_size, 4)
 
         response = self.patch_course(course1, dict(
             title='barfoo',

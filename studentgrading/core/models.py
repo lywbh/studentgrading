@@ -513,6 +513,10 @@ class StudentQuerySet(models.QuerySet):
             query |= Q(courses=course)
         return self.filter(query)
 
+    def in_any_group_of(self, course):
+        query = Q(leader_of__course=course) | Q(member_of__course=course)
+        return self.filter(query)
+
 
 class StudentManager(models.Manager):
     def create_student_with_courses(self, courses, **kwargs):
