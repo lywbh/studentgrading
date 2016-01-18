@@ -517,6 +517,9 @@ class StudentQuerySet(models.QuerySet):
         query = Q(leader_of__course=course) | Q(member_of__course=course)
         return self.filter(query)
 
+    def not_in_any_group_of(self, course):
+        return self.filter(~(Q(leader_of__course=course) | Q(member_of__course=course)))
+
 
 class StudentManager(models.Manager):
     def create_student_with_courses(self, courses, **kwargs):

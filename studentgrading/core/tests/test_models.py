@@ -158,18 +158,6 @@ class StudentMethodTests(TestCase):
         self.assertTrue(stu2.is_taking_same_course_with(stu1))
         self.assertTrue(stu1.is_taking_same_course_with(stu2))
 
-    def test_in_group_of(self):
-        course1 = factories.CourseFactory()
-        for i in range(3):
-            factories.StudentTakesCourseFactory(courses__course=course1)
-
-        stu1 = factories.StudentTakesCourseFactory(courses__course=course1)
-        stu2 = factories.StudentTakesCourseFactory(courses__course=course1)
-        group1 = factories.GroupFactory(course=course1, leader=stu1)
-        factories.GroupMembershipFactory(student=stu2, group=group1)
-
-        self.assertEqual(Student.objects.in_any_group_of(course1).count(), 2)
-
 
 class StudentManagerTests(TestCase):
 
@@ -191,6 +179,30 @@ class StudentManagerTests(TestCase):
                          30)
         self.assertEqual(self.mang.takes_courses([course1]).takes_courses([course2]).count(),
                          0)
+
+    def test_in_group_of(self):
+        course1 = factories.CourseFactory()
+        for i in range(3):
+            factories.StudentTakesCourseFactory(courses__course=course1)
+
+        stu1 = factories.StudentTakesCourseFactory(courses__course=course1)
+        stu2 = factories.StudentTakesCourseFactory(courses__course=course1)
+        group1 = factories.GroupFactory(course=course1, leader=stu1)
+        factories.GroupMembershipFactory(student=stu2, group=group1)
+
+        self.assertEqual(Student.objects.in_any_group_of(course1).count(), 2)
+
+    def test_not_in_group_of(self):
+        course1 = factories.CourseFactory()
+        for i in range(3):
+            factories.StudentTakesCourseFactory(courses__course=course1)
+
+        stu1 = factories.StudentTakesCourseFactory(courses__course=course1)
+        stu2 = factories.StudentTakesCourseFactory(courses__course=course1)
+        group1 = factories.GroupFactory(course=course1, leader=stu1)
+        factories.GroupMembershipFactory(student=stu2, group=group1)
+
+        self.assertEqual(Student.objects.not_in_any_group_of(course1).count(), 3)
 
 
 class StudentPermsTests(TestCase):

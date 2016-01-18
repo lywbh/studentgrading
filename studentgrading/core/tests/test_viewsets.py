@@ -24,6 +24,23 @@ def get_formatted_json(data):
     return json.dumps(data, indent=2)
 
 
+def patch_params_to_url(url, params):
+    if params:
+        if url[-1] != '/':
+            url += '/'
+        url += '?'
+    else:
+        return url
+
+    field = list(params.items())[0][0]
+    value = params.pop(field)
+    url += '{0}={1}'.format(field, value)
+    for field, value in params.items():
+        url += '&{0}={1}'.format(field, value)
+
+    return url
+
+
 def get_course_url(course):
     return reverse('api:course-detail', kwargs={'pk': course.pk})
 
@@ -71,6 +88,11 @@ class StudentAPITests(APITestUtilsMixin, APITestCase):
     def get_student_list(self):
         return self.client.get(reverse('api:student-list'))
 
+    def filter_student_list(self, params):
+        url = patch_params_to_url(reverse('api:student-list'),
+                                  params)
+        return self.client.get(url)
+
     def get_student_detail(self, stu):
         return self.client.get(reverse('api:student-detail', kwargs={'pk': stu.pk}))
 
@@ -102,8 +124,31 @@ class StudentAPITests(APITestUtilsMixin, APITestCase):
         return (set(data_dict.keys()) ==
                 {'url', 'id', 'name', 'sex', 's_id', 's_class', 'courses', 'user'})
 
-    def test_test(self):
-        pass
+    def test_filter_get(self):
+        course1 = factories.CourseFactory()
+        for i in range(4):
+            factories.StudentTakesCourseFactory(courses__course=course1)
+            factories.StudentFactory()
+
+        inst1 = factories.InstructorTeachesCourseFactory(courses__course=course1)
+
+        # against course
+        self.force_authenticate_user(inst1.user)
+        response = self.filter_student_list(dict(course=course1.pk))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 4)
+
+        # against course and group status
+        stu1 = factories.StudentTakesCourseFactory(courses__course=course1)
+        group1 = factories.GroupFactory(course=course1, leader=stu1)
+        for i in range(2):
+            factories.GroupMembershipFactory(group=group1,
+                                             student=factories.StudentTakesCourseFactory(courses__course=course1))
+        response = self.filter_student_list(dict(course=course1.pk, grouped=True))
+        self.assertEqual(len(response.data), 3)
+
+        response = self.filter_student_list(dict(course=course1.pk, grouped=False))
+        self.assertEqual(len(response.data), 4)
 
     def test_access_normal_student(self):
         stu1 = factories.StudentFactory()
@@ -1270,35 +1315,35 @@ class CourseInstructorsAPITests(APITestUtilsMixin, APITestCase):
         self.get_course_instructor_list(course1)
 
 
-class CourseStudentsAPITests(APITestUtilsMixin, APITestCase):
+class CourseTakesAPITests(APITestUtilsMixin, APITestCase):
 
     def get_course_student_list(self, course):
-        return self.client.get(reverse('api:course-student-list', kwargs={'parent_lookup_course': course.pk}))
+        return self.client.get(reverse('api:course-takes-list', kwargs={'parent_lookup_course': course.pk}))
 
     def get_course_student_detail(self, course, takes):
-        return self.client.get(reverse('api:course-student-detail',
+        return self.client.get(reverse('api:course-takes-detail',
                                        kwargs={'parent_lookup_course': course.pk, 'pk': takes.pk}))
 
     def post_course_student(self, course, takes_dict):
-        return self.client.post(reverse('api:course-student-list', kwargs={'parent_lookup_course': course.pk}),
+        return self.client.post(reverse('api:course-takes-list', kwargs={'parent_lookup_course': course.pk}),
                                 takes_dict)
 
     def put_course_student(self, course, takes, takes_dict):
         return self.client.put(
-            reverse('api:course-student-detail',
+            reverse('api:course-takes-detail',
                     kwargs={'parent_lookup_course': course.pk, 'pk': takes.pk}),
             takes_dict
         )
 
     def patch_course_student(self, course, takes, takes_dict):
         return self.client.patch(
-            reverse('api:course-student-detail',
+            reverse('api:course-takes-detail',
                     kwargs={'parent_lookup_course': course.pk, 'pk': takes.pk}),
             takes_dict
         )
 
     def delete_course_student(self, course, takes):
-        return self.client.delete(reverse('api:course-student-detail',
+        return self.client.delete(reverse('api:course-takes-detail',
                                           kwargs={'parent_lookup_course': course.pk, 'pk': takes.pk}))
 
     def is_view_all_fields(self, takes_dict):

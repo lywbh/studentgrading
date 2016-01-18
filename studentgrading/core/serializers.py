@@ -458,13 +458,13 @@ class ReadCourseInstructorsSerializer(serializers.HyperlinkedModelSerializer):
 
 
 # -----------------------------------------------------------------------------
-# CourseStudents Serializers (courses/{pk}/students/)
+# CourseTakes Serializers (courses/{pk}/takes/)
 # -----------------------------------------------------------------------------
-class CreateCourseStudentsSerializer(CreateTakesMixin,
+class CreateCourseTakesSerializer(CreateTakesMixin,
                                      serializers.HyperlinkedModelSerializer):
 
     url = ChildHyperlinkedIdentityField(
-        view_name='api:course-student-detail',
+        view_name='api:course-takes-detail',
         parent_field_name='course',
     )
 
@@ -477,11 +477,11 @@ class CreateCourseStudentsSerializer(CreateTakesMixin,
         }
 
 
-class ReadCourseStudentsSerializer(ReadTakesMixin,
+class ReadCourseTakesSerializer(ReadTakesMixin,
                                    serializers.HyperlinkedModelSerializer):
 
     url = ChildHyperlinkedIdentityField(
-        view_name='api:course-student-detail',
+        view_name='api:course-takes-detail',
         parent_field_name='course',
     )
 
@@ -495,9 +495,9 @@ class ReadCourseStudentsSerializer(ReadTakesMixin,
         }
 
 
-class BaseWriteCourseStudentsSerializer(CreateCourseStudentsSerializer):
+class BaseWriteCourseTakesSerializer(CreateCourseTakesSerializer):
 
-    class Meta(CreateCourseStudentsSerializer.Meta):
+    class Meta(CreateCourseTakesSerializer.Meta):
         fields = ('url', 'id', 'grade')
 
 

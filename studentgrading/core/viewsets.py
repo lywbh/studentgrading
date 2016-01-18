@@ -15,7 +15,7 @@ from .serializers import (
     CreateInstructorCoursesSerializer, ReadInstructorCoursesSerializer,
     CreateCourseSerializer, ReadCourseSerializer, BaseWriteCourseSerializer,
     CourseInstructorsSerializer, ReadCourseInstructorsSerializer,
-    CreateCourseStudentsSerializer, ReadCourseStudentsSerializer, BaseWriteCourseStudentsSerializer,
+    CreateCourseTakesSerializer, ReadCourseTakesSerializer, BaseWriteCourseTakesSerializer,
     ReadGroupSerializer, CreateGroupSerializer, WriteGroupSerializer,
     ClassSerializer,
 )
@@ -235,6 +235,23 @@ class StudentViewSet(FourLevelPermModelViewSet):
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class
 
+    def get_queryset(self):
+        """
+        Filter against `course` id.
+        """
+        queryset = super(StudentViewSet, self).get_queryset()
+        course_id = self.request.query_params.get('course', None)
+        if course_id is not None:
+            course = Course.objects.get(pk=course_id)
+            queryset = queryset.takes_courses([course])
+
+            grouped = self.request.query_params.get('grouped', None)
+            if grouped == 'True':
+                queryset = queryset.in_any_group_of(course)
+            elif grouped == 'False':
+                queryset = queryset.not_in_any_group_of(course)
+        return queryset
+
 
 # -----------------------------------------------------------------------------
 # StudentCourses ViewSet
@@ -370,17 +387,17 @@ class CourseInstructorsViewSet(FourLevelPermListModelMixin,
 
 
 # -----------------------------------------------------------------------------
-# CourseStudents ViewSets
+# CourseTakes ViewSets
 # -----------------------------------------------------------------------------
-class CourseStudentsViewSet(FourLevelPermNestedModelViewSet):
+class CourseTakesViewSet(FourLevelPermNestedModelViewSet):
     queryset = Takes.objects.all()
     filter_backends = (FourLevelObjectPermissionsFilter, )
     permission_classes = (FourLevelObjectPermissions, )
-    serializer_class = ReadCourseStudentsSerializer
+    serializer_class = ReadCourseTakesSerializer
 
-    read_serializer_class = ReadCourseStudentsSerializer
-    write_serializer_class = CreateCourseStudentsSerializer
-    base_write_serializer_class = BaseWriteCourseStudentsSerializer
+    read_serializer_class = ReadCourseTakesSerializer
+    write_serializer_class = CreateCourseTakesSerializer
+    base_write_serializer_class = BaseWriteCourseTakesSerializer
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class
 

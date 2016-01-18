@@ -30,9 +30,9 @@ course_router.register(r'instructors',
                        core_viewsets.CourseInstructorsViewSet,
                        'course-instructor',
                        parents_query_lookups=['course'])
-course_router.register(r'students',
-                       core_viewsets.CourseStudentsViewSet,
-                       'course-student',
+course_router.register(r'takes',
+                       core_viewsets.CourseTakesViewSet,
+                       'course-takes',
                        parents_query_lookups=['course'])
 course_router.register(r'groups',
                        core_viewsets.CourseGroupsViewSet,
