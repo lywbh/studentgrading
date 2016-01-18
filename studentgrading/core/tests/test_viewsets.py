@@ -17,7 +17,7 @@ from ..models import (
 
 User = get_user_model()
 
-skip_seperate_tests = True
+skip_seperate_tests = False
 skip_seperate_tests_reason = "This test can only pass when tested separately."
 
 print_api_response = True
@@ -806,9 +806,23 @@ class CourseAITests(APITestUtilsMixin, APITestCase):
         response = self.get_course_detail(course1)
         self.assertTrue(self.is_normal_inst_fields(response.data))
 
+    def test_lazy_object(self):
+        stu1 = factories.StudentFactory()
+        inst1 = factories.InstructorFactory()
+        course1 = factories.CourseFactory()
+
+        self.force_authenticate_user(inst1.user)
+        self.get_course_detail(course1)
+        # instructor can POST
+        response = self.post_course(dict(
+            title='foobar', year='2005', semester='SPG', description='',
+            instructors=[get_instructor_url(inst1)],
+        ))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(inst1.courses.count(), 1)
+
     @unittest.skipIf(skip_seperate_tests, skip_seperate_tests_reason)
     def test_post(self):
-        self.client = APIClient()
         stu1 = factories.StudentFactory()
         inst1 = factories.InstructorFactory()
 
@@ -1258,6 +1272,13 @@ class CourseInstructorsAPITests(APITestUtilsMixin, APITestCase):
         self.force_authenticate_user(inst1.user)
         response = self.delete_course_instructor(course1, teaches1)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_test(self):
+        stu1 = factories.StudentFactory()
+        course1 = factories.CourseFactory()
+
+        self.force_authenticate_user(stu1.user)
+        self.get_course_instructor_list(course1)
 
 
 class CourseStudentsAPITests(APITestUtilsMixin, APITestCase):
