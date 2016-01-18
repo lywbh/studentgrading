@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from rest_framework import viewsets, filters, mixins, status, generics
+from rest_framework import viewsets, filters, mixins, status
 from rest_framework.response import Response
 from rest_framework.relations import reverse
 from rest_framework.decorators import detail_route, list_route
@@ -9,13 +9,13 @@ from rest_framework_extensions.mixins import NestedViewSetMixin
 from guardian.shortcuts import get_objects_for_user
 
 from .serializers import (
-    StudentSerializer, ReadStudentSerializer,
-    StudentCoursesSerializer, ReadStudentCoursesSerializer, BaseWriteStudentCoursesSerializer,
-    InstructorSerializer, ReadInstructorSerializer,
-    InstructorCoursesSerializer, ReadInstructorCoursesSerializer,
-    CourseSerializer, ReadCourseSerializer, BaseWriteCourseSerializer,
+    CreateStudentSerializer, ReadStudentSerializer,
+    CreateStudentCoursesSerializer, ReadStudentCoursesSerializer, BaseWriteStudentCoursesSerializer,
+    CreateInstructorSerializer, ReadInstructorSerializer,
+    CreateInstructorCoursesSerializer, ReadInstructorCoursesSerializer,
+    CreateCourseSerializer, ReadCourseSerializer, BaseWriteCourseSerializer,
     CourseInstructorsSerializer, ReadCourseInstructorsSerializer,
-    CourseStudentsSerializer, ReadCourseStudentsSerializer, BaseWriteCourseStudentsSerializer,
+    CreateCourseStudentsSerializer, ReadCourseStudentsSerializer, BaseWriteCourseStudentsSerializer,
     ReadGroupSerializer, CreateGroupSerializer, WriteGroupSerializer,
     ClassSerializer,
 )
@@ -230,7 +230,7 @@ class StudentViewSet(FourLevelPermModelViewSet):
     serializer_class = ReadStudentSerializer    # add this to ensure browsable api is okay
 
     read_serializer_class = ReadStudentSerializer
-    write_serializer_class = StudentSerializer
+    write_serializer_class = CreateStudentSerializer
     base_write_serializer_class = write_serializer_class
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class
@@ -246,7 +246,7 @@ class StudentCoursesViewSet(FourLevelPermNestedModelViewSet):
     serializer_class = ReadStudentCoursesSerializer     # add this to ensure browsable api is okay
 
     read_serializer_class = ReadStudentCoursesSerializer
-    write_serializer_class = StudentCoursesSerializer
+    write_serializer_class = CreateStudentCoursesSerializer
     base_write_serializer_class = BaseWriteStudentCoursesSerializer
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class
@@ -262,7 +262,7 @@ class InstructorViewSet(FourLevelPermModelViewSet):
     serializer_class = ReadInstructorSerializer     # add this to ensure browsable api is okay
 
     read_serializer_class = ReadInstructorSerializer
-    write_serializer_class = InstructorSerializer
+    write_serializer_class = CreateInstructorSerializer
     base_write_serializer_class = write_serializer_class
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class
@@ -278,7 +278,7 @@ class InstructorCoursesViewSet(FourLevelPermNestedModelViewSet):
     serializer_class = ReadInstructorCoursesSerializer
 
     read_serializer_class = ReadInstructorCoursesSerializer
-    write_serializer_class = InstructorCoursesSerializer
+    write_serializer_class = CreateInstructorCoursesSerializer
     base_write_serializer_class = write_serializer_class
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class
@@ -294,7 +294,7 @@ class CourseViewSet(FourLevelPermModelViewSet):
     serializer_class = ReadCourseSerializer
 
     read_serializer_class = ReadCourseSerializer
-    write_serializer_class = CourseSerializer
+    write_serializer_class = CreateCourseSerializer
     base_write_serializer_class = BaseWriteCourseSerializer
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class
@@ -334,7 +334,7 @@ class CourseViewSet(FourLevelPermModelViewSet):
     @list_route(methods=['get'], permission_classes=[IsStudent])
     def taking(self, request):
         """
-        Get a list of courses given by this student
+        Get a list of courses taken by this student
         """
         self.check_permissions(request)
 
@@ -379,7 +379,7 @@ class CourseStudentsViewSet(FourLevelPermNestedModelViewSet):
     serializer_class = ReadCourseStudentsSerializer
 
     read_serializer_class = ReadCourseStudentsSerializer
-    write_serializer_class = CourseStudentsSerializer
+    write_serializer_class = CreateCourseStudentsSerializer
     base_write_serializer_class = BaseWriteCourseStudentsSerializer
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class

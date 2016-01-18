@@ -80,35 +80,18 @@ class ChildHyperlinkedRelatedField(serializers.HyperlinkedRelatedField):
 
 
 # -----------------------------------------------------------------------------
-# Relationship Serializers
+# Relationship Mixins
 # -----------------------------------------------------------------------------
-class TakesSerializer(serializers.HyperlinkedModelSerializer):
-
-    class Meta:
-        model = Takes
-        fields = ('url', 'id', 'student', 'course', 'grade')
-        extra_kwargs = {
-            'student': {'view_name': 'api:student-detail'},
-            'course': {'view_name': 'api:course-detail'},
-        }
-
-    def to_representation(self, instance):
-        ret = super(TakesSerializer, self).to_representation(instance)
-        user = self.context['request'].user
-        if not has_four_level_perm('core.view_takes', user, instance):
-            del ret['grade']
-
-        return ret
-
+class CreateTakesMixin(object):
     def to_internal_value(self, data):
-        validated_data = super(TakesSerializer, self).to_internal_value(data)
+        validated_data = super(CreateTakesMixin, self).to_internal_value(data)
         if getattr(self, 'context'):
             request = self.context['request']
             user = request.user
             user_role = get_role_of(user)
             if (isinstance(user_role, Instructor) and
-                    request.method == 'POST' and
-                    'course' in validated_data):
+                        request.method == 'POST' and
+                        'course' in validated_data):
                 # When instructor tries to add a 'takes' with this student,
                 # it can only add the student to its course
                 request_instructor = user_role
@@ -120,27 +103,29 @@ class TakesSerializer(serializers.HyperlinkedModelSerializer):
         return validated_data
 
 
-class TeachesSerializer(serializers.HyperlinkedModelSerializer):
+class ReadTakesMixin(object):
+    def to_representation(self, instance):
+        ret = super(ReadTakesMixin, self).to_representation(instance)
+        user = self.context['request'].user
+        if not has_four_level_perm('core.view_takes', user, instance):
+            del ret['grade']
 
-    class Meta:
-        model = Teaches
-        fields = ('url', 'id', 'instructor', 'course')
-        extra_kwargs = {
-            'instructor': {'view_name': 'api:instructor-detail'},
-            'course': {'view_name': 'api:course-detail'},
-        }
+        return ret
+
+
+class CreateTeachesMixin(object):
 
     def to_internal_value(self, data):
-        validated_data = super(TeachesSerializer, self).to_internal_value(data)
+        validated_data = super(CreateTeachesMixin, self).to_internal_value(data)
         if getattr(self, 'context'):
             request = self.context['request']
             user = request.user
             user_role = get_role_of(user)
 
             if (isinstance(user_role, Instructor) and
-                    request.method == 'POST' and
-                    'course' in validated_data and
-                    'instructor' in validated_data):
+                        request.method == 'POST' and
+                        'course' in validated_data and
+                        'instructor' in validated_data):
                 # When instructor tries to add 'teaches' with a course not given by itself,
                 # it can only add itself to this course
                 requeset_inst = user_role
@@ -156,7 +141,7 @@ class TeachesSerializer(serializers.HyperlinkedModelSerializer):
 # -----------------------------------------------------------------------------
 # Student Serializers
 # -----------------------------------------------------------------------------
-class StudentSerializer(serializers.HyperlinkedModelSerializer):
+class CreateStudentSerializer(serializers.HyperlinkedModelSerializer):
     courses = serializers.HyperlinkedIdentityField(
         source='takes',
         view_name='api:student-course-list',
@@ -176,8 +161,30 @@ class StudentSerializer(serializers.HyperlinkedModelSerializer):
             }
         }
 
+
+class ReadStudentSerializer(serializers.HyperlinkedModelSerializer):
+    courses = serializers.HyperlinkedIdentityField(
+        source='takes',
+        view_name='api:student-course-list',
+        lookup_url_kwarg='parent_lookup_student',
+    )
+
+    class Meta:
+        model = Student
+        fields = ('url', 'id', 'user', 'name', 'sex', 's_id', 's_class', 'courses', )
+        read_only_fields = ('user', 'name', 'sex', 's_id', 's_class', 'courses', )
+        extra_kwargs = {
+            'url': {'view_name': 'api:student-detail', },
+            'user': {
+                'view_name': 'api:user-detail',
+            },
+            's_class': {
+                'view_name': 'api:class-detail',
+            }
+        }
+
     def to_representation(self, instance):
-        ret = super(StudentSerializer, self).to_representation(instance)
+        ret = super(ReadStudentSerializer, self).to_representation(instance)
         user = self.context['request'].user
         if not has_four_level_perm('core.view_student', user, instance):
             del ret['user']
@@ -192,15 +199,10 @@ class StudentSerializer(serializers.HyperlinkedModelSerializer):
         return ret
 
 
-class ReadStudentSerializer(StudentSerializer):
-    class Meta(StudentSerializer.Meta):
-        read_only_fields = ('user', 'name', 'sex', 's_id', 's_class', 'courses', )
-
-
 # -----------------------------------------------------------------------------
 # Instructor Serializers
 # -----------------------------------------------------------------------------
-class InstructorSerializer(serializers.HyperlinkedModelSerializer):
+class CreateInstructorSerializer(serializers.HyperlinkedModelSerializer):
     courses = serializers.HyperlinkedIdentityField(
         source='teaches',
         view_name='api:instructor-course-list',
@@ -215,8 +217,26 @@ class InstructorSerializer(serializers.HyperlinkedModelSerializer):
             'user': {'view_name': 'api:user-detail', },
         }
 
+
+class ReadInstructorSerializer(serializers.HyperlinkedModelSerializer):
+
+    courses = serializers.HyperlinkedIdentityField(
+        source='teaches',
+        view_name='api:instructor-course-list',
+        lookup_url_kwarg='parent_lookup_instructor',
+    )
+
+    class Meta:
+        model = Instructor
+        fields = ('url', 'id', 'user', 'name', 'sex', 'inst_id', 'courses')
+        read_only_fields = ('user', 'name', 'sex', 'inst_id', 'courses', )
+        extra_kwargs = {
+            'url': {'view_name': 'api:instructor-detail', },
+            'user': {'view_name': 'api:user-detail', },
+        }
+
     def to_representation(self, instance):
-        ret = super(InstructorSerializer, self).to_representation(instance)
+        ret = super(ReadInstructorSerializer, self).to_representation(instance)
         user = self.context['request'].user
         if not has_four_level_perm('core.view_instructor', user, instance):
             del ret['user']
@@ -227,58 +247,133 @@ class InstructorSerializer(serializers.HyperlinkedModelSerializer):
         return ret
 
 
-class ReadInstructorSerializer(InstructorSerializer):
-    class Meta(InstructorSerializer.Meta):
-        read_only_fields = ('user', 'name', 'sex', 'inst_id', 'courses', )
-
-
 # -----------------------------------------------------------------------------
 # StudentCourses Serializers (students/{pk}/courses/)
 # -----------------------------------------------------------------------------
-class StudentCoursesSerializer(TakesSerializer):
+class CreateStudentCoursesSerializer(CreateTakesMixin,
+                                     serializers.HyperlinkedModelSerializer):
 
     url = ChildHyperlinkedIdentityField(
         view_name='api:student-course-detail',
         parent_field_name='student',
     )
 
-    class Meta(TakesSerializer.Meta):
-        pass
+    class Meta:
+        model = Takes
+        fields = ('url', 'id', 'student', 'course', 'grade')
+        extra_kwargs = {
+            'student': {'view_name': 'api:student-detail'},
+            'course': {'view_name': 'api:course-detail'},
+        }
 
 
-class ReadStudentCoursesSerializer(StudentCoursesSerializer):
-    class Meta(StudentCoursesSerializer.Meta):
+class ReadStudentCoursesSerializer(ReadTakesMixin,
+                                   serializers.HyperlinkedModelSerializer):
+
+    url = ChildHyperlinkedIdentityField(
+        view_name='api:student-course-detail',
+        parent_field_name='student',
+    )
+
+    class Meta:
+        model = Takes
+        fields = ('url', 'id', 'student', 'course', 'grade')
         read_only_fields = ('student', 'course', 'grade', )
+        extra_kwargs = {
+            'student': {'view_name': 'api:student-detail'},
+            'course': {'view_name': 'api:course-detail'},
+        }
 
 
-class BaseWriteStudentCoursesSerializer(StudentCoursesSerializer):
-    class Meta(StudentCoursesSerializer.Meta):
+class BaseWriteStudentCoursesSerializer(CreateStudentCoursesSerializer):
+
+    class Meta(CreateStudentCoursesSerializer.Meta):
         fields = ('url', 'id', 'grade')
 
 
 # -----------------------------------------------------------------------------
 # InstructorCourses Serializers (instructors/{pk}/courses/)
 # -----------------------------------------------------------------------------
-class InstructorCoursesSerializer(TeachesSerializer):
+class CreateInstructorCoursesSerializer(CreateTeachesMixin,
+                                        serializers.HyperlinkedModelSerializer):
 
     url = ChildHyperlinkedIdentityField(
         view_name='api:instructor-course-detail',
         parent_field_name='instructor',
     )
 
-    class Meta(TeachesSerializer.Meta):
-        pass
+    class Meta:
+        model = Teaches
+        fields = ('url', 'id', 'instructor', 'course')
+        extra_kwargs = {
+            'instructor': {'view_name': 'api:instructor-detail'},
+            'course': {'view_name': 'api:course-detail'},
+        }
 
 
-class ReadInstructorCoursesSerializer(InstructorCoursesSerializer):
-    class Meta(InstructorCoursesSerializer.Meta):
+class ReadInstructorCoursesSerializer(serializers.HyperlinkedModelSerializer):
+
+    url = ChildHyperlinkedIdentityField(
+        view_name='api:instructor-course-detail',
+        parent_field_name='instructor',
+    )
+
+    class Meta:
+        model = Teaches
+        fields = ('url', 'id', 'instructor', 'course')
         read_only_fields = ('instructor', 'course', )
+        extra_kwargs = {
+            'instructor': {'view_name': 'api:instructor-detail'},
+            'course': {'view_name': 'api:course-detail'},
+        }
 
 
 # -----------------------------------------------------------------------------
 # Course Serializers (courses/{pk}/)
 # -----------------------------------------------------------------------------
-class CourseSerializer(serializers.HyperlinkedModelSerializer):
+class ReadCourseSerializer(serializers.HyperlinkedModelSerializer):
+
+    instructors = ChildHyperlinkedRelatedField(
+        source='teaches',
+        many=True,
+        read_only=True,
+        view_name='api:course-instructor-detail',
+        parent_field_name='course',
+    )
+
+    groups = serializers.HyperlinkedRelatedField(
+        many=True,
+        read_only=True,
+        view_name='api:group-detail',
+    )
+
+    class Meta:
+        model = Course
+        fields = ('url', 'id', 'title', 'year', 'semester', 'description',
+                  'min_group_size', 'max_group_size', 'instructors', 'groups')
+        read_only_fields = (
+            'title', 'year', 'semester', 'description',
+            'min_group_size', 'max_group_size', 'instructors'
+        )
+        extra_kwargs = {
+            'url': {'view_name': 'api:course-detail'},
+        }
+
+    def to_representation(self, instance):
+        ret = super(ReadCourseSerializer, self).to_representation(instance)
+        user = self.context['request'].user
+        if not has_four_level_perm('core.view_course', user, instance):
+            del ret['min_group_size']
+            del ret['max_group_size']
+            del ret['groups']
+
+            if not has_four_level_perm('core.view_course_advanced', user, instance):
+                del ret['instructors']
+
+        return ret
+
+
+class CreateCourseSerializer(serializers.HyperlinkedModelSerializer):
 
     instructors = serializers.HyperlinkedRelatedField(
         many=True,
@@ -319,107 +414,97 @@ class CourseSerializer(serializers.HyperlinkedModelSerializer):
 
         return course
 
-    def to_representation(self, instance):
-        ret = super(CourseSerializer, self).to_representation(instance)
-        user = self.context['request'].user
-        if not has_four_level_perm('core.view_course', user, instance):
-            del ret['min_group_size']
-            del ret['max_group_size']
-            del ret['groups']
 
-            if not has_four_level_perm('core.view_course_advanced', user, instance):
-                del ret['instructors']
-
-        return ret
-
-
-class ReadCourseSerializer(CourseSerializer):
-    """
-    instructors = serializers.HyperlinkedIdentityField(
-        source='teaches',
-        view_name='api:course-instructor-list',
-        lookup_url_kwarg='parent_lookup_course',
-    )
-    """
-    instructors = ChildHyperlinkedRelatedField(
-        source='teaches',
-        many=True,
-        read_only=True,
-        view_name='api:course-instructor-detail',
-        parent_field_name='course',
-    )
-
-    class Meta(CourseSerializer.Meta):
-        read_only_fields = (
-            'title', 'year', 'semester', 'description',
-            'min_group_size', 'max_group_size', 'instructors'
-        )
-
-
-class BaseWriteCourseSerializer(CourseSerializer):
-    class Meta(CourseSerializer.Meta):
+class BaseWriteCourseSerializer(CreateCourseSerializer):
+    class Meta(CreateCourseSerializer.Meta):
         fields = ('url', 'id', 'min_group_size', 'max_group_size', 'description')
 
 
 # -----------------------------------------------------------------------------
 # CourseInstructors Serializers (courses/{pk}/instructors/)
 # -----------------------------------------------------------------------------
-class CourseInstructorsSerializer(TeachesSerializer):
+class CourseInstructorsSerializer(CreateTeachesMixin,
+                                  serializers.HyperlinkedModelSerializer):
 
     url = ChildHyperlinkedIdentityField(
         view_name='api:course-instructor-detail',
         parent_field_name='course',
     )
 
-    class Meta(TeachesSerializer.Meta):
-        pass
+    class Meta:
+        model = Teaches
+        fields = ('url', 'id', 'instructor', 'course')
+        extra_kwargs = {
+            'instructor': {'view_name': 'api:instructor-detail'},
+            'course': {'view_name': 'api:course-detail'},
+        }
 
 
-class ReadCourseInstructorsSerializer(CourseInstructorsSerializer):
-    class Meta(CourseInstructorsSerializer.Meta):
+class ReadCourseInstructorsSerializer(serializers.HyperlinkedModelSerializer):
+
+    url = ChildHyperlinkedIdentityField(
+        view_name='api:course-instructor-detail',
+        parent_field_name='course',
+    )
+
+    class Meta:
+        model = Teaches
+        fields = ('url', 'id', 'instructor', 'course')
         read_only_fields = ('instructor', 'course')
+        extra_kwargs = {
+            'instructor': {'view_name': 'api:instructor-detail'},
+            'course': {'view_name': 'api:course-detail'},
+        }
 
 
 # -----------------------------------------------------------------------------
 # CourseStudents Serializers (courses/{pk}/students/)
 # -----------------------------------------------------------------------------
-class CourseStudentsSerializer(TakesSerializer):
+class CreateCourseStudentsSerializer(CreateTakesMixin,
+                                     serializers.HyperlinkedModelSerializer):
 
     url = ChildHyperlinkedIdentityField(
         view_name='api:course-student-detail',
         parent_field_name='course',
     )
 
-    class Meta(TakesSerializer.Meta):
-        fields = ('url', 'id', 'course', 'student', 'grade')
+    class Meta:
+        model = Takes
+        fields = ('url', 'id', 'student', 'course', 'grade')
+        extra_kwargs = {
+            'student': {'view_name': 'api:student-detail'},
+            'course': {'view_name': 'api:course-detail'},
+        }
 
 
-class ReadCourseStudentsSerializer(CourseStudentsSerializer):
-    class Meta(CourseStudentsSerializer.Meta):
+class ReadCourseStudentsSerializer(ReadTakesMixin,
+                                   serializers.HyperlinkedModelSerializer):
+
+    url = ChildHyperlinkedIdentityField(
+        view_name='api:course-student-detail',
+        parent_field_name='course',
+    )
+
+    class Meta:
+        model = Takes
+        fields = ('url', 'id', 'student', 'course', 'grade')
         read_only_fields = ('student', 'course', 'grade', )
+        extra_kwargs = {
+            'student': {'view_name': 'api:student-detail'},
+            'course': {'view_name': 'api:course-detail'},
+        }
 
 
-class BaseWriteCourseStudentsSerializer(CourseStudentsSerializer):
-    class Meta(CourseStudentsSerializer.Meta):
+class BaseWriteCourseStudentsSerializer(CreateCourseStudentsSerializer):
+
+    class Meta(CreateCourseStudentsSerializer.Meta):
         fields = ('url', 'id', 'grade')
 
 
 # -----------------------------------------------------------------------------
 # Group Serializers (groups/, courses/{pk}/groups/)
 # -----------------------------------------------------------------------------
-class GroupSerializer(serializers.HyperlinkedModelSerializer):
-
-    class Meta:
-        model = Group
-        fields = ('url', 'id', 'number', 'name', 'course', 'leader', 'members', )
-        extra_kwargs = {
-            'url': {'view_name': 'api:group-detail'},
-            'course': {'view_name': 'api:course-detail'},
-            'leader': {'view_name': 'api:student-detail'},
-        }
-
-
-class CreateGroupSerializer(GroupSerializer):
+class CreateGroupSerializer(serializers.HyperlinkedModelSerializer):
     """
     Serializer for create a group.
     """
@@ -430,8 +515,15 @@ class CreateGroupSerializer(GroupSerializer):
         view_name='api:student-detail',
     )
 
-    class Meta(GroupSerializer.Meta):
+    class Meta:
+        model = Group
+        fields = ('url', 'id', 'number', 'name', 'course', 'leader', 'members', )
         read_only_fields = ('number', )
+        extra_kwargs = {
+            'url': {'view_name': 'api:group-detail'},
+            'course': {'view_name': 'api:course-detail'},
+            'leader': {'view_name': 'api:student-detail'},
+        }
 
     def create(self, validated_data):
         """
@@ -445,7 +537,7 @@ class CreateGroupSerializer(GroupSerializer):
         return group
 
 
-class ReadGroupSerializer(GroupSerializer):
+class ReadGroupSerializer(serializers.HyperlinkedModelSerializer):
 
     members = serializers.HyperlinkedRelatedField(
         many=True,
@@ -453,11 +545,18 @@ class ReadGroupSerializer(GroupSerializer):
         view_name='api:group-detail',
     )
 
-    class Meta(GroupSerializer.Meta):
+    class Meta:
+        model = Group
+        fields = ('url', 'id', 'number', 'name', 'course', 'leader', 'members', )
         read_only_fields = ('number', 'name', 'course', 'leader', 'members', )
+        extra_kwargs = {
+            'url': {'view_name': 'api:group-detail'},
+            'course': {'view_name': 'api:course-detail'},
+            'leader': {'view_name': 'api:student-detail'},
+        }
 
 
-class WriteGroupSerializer(GroupSerializer):
+class WriteGroupSerializer(serializers.HyperlinkedModelSerializer):
 
     members = serializers.HyperlinkedRelatedField(
         many=True,
@@ -465,8 +564,15 @@ class WriteGroupSerializer(GroupSerializer):
         view_name='api:group-detail',
     )
 
-    class Meta(GroupSerializer.Meta):
+    class Meta:
+        model = Group
+        fields = ('url', 'id', 'number', 'name', 'course', 'leader', 'members', )
         read_only_fields = ('number', 'course', 'members', )
+        extra_kwargs = {
+            'url': {'view_name': 'api:group-detail'},
+            'course': {'view_name': 'api:course-detail'},
+            'leader': {'view_name': 'api:student-detail'},
+        }
 
     def update(self, instance, validated_data):
         """

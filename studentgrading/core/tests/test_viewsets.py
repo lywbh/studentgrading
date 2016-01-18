@@ -8,7 +8,6 @@ from django.contrib.auth import get_user_model
 
 from rest_framework import status
 from rest_framework.test import APITestCase
-from rest_framework.test import APIClient
 
 from . import factories
 from ..models import (
@@ -16,9 +15,6 @@ from ..models import (
 )
 
 User = get_user_model()
-
-skip_seperate_tests = False
-skip_seperate_tests_reason = "This test can only pass when tested separately."
 
 print_api_response = True
 print_api_response_reason = "Print response to write docs."
@@ -418,7 +414,6 @@ class StudentCoursesAPITests(APITestUtilsMixin, APITestCase):
         response = self.delete_student_course(stu2, takes2_1)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @unittest.skipIf(skip_seperate_tests, skip_seperate_tests_reason)
     def test_inst_access_student_course(self):
         course1 = factories.CourseFactory()
         course2 = factories.CourseFactory()
@@ -608,7 +603,6 @@ class InstructorCoursesAPITests(APITestUtilsMixin, APITestCase):
         response = self.get_instructor_course_detail(inst1, teaches1)
         self.assertTrue(self.is_other_inst_fields(response.data))
 
-    @unittest.skipIf(skip_seperate_tests, skip_seperate_tests_reason)
     def test_add_course_to_other_inst(self):
         course1 = factories.CourseFactory()
         course2 = factories.CourseFactory()
@@ -629,7 +623,6 @@ class InstructorCoursesAPITests(APITestUtilsMixin, APITestCase):
         ))
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @unittest.skipIf(skip_seperate_tests, skip_seperate_tests_reason)
     def test_add_course_to_inst_itself(self):
         course1 = factories.CourseFactory()
         inst1 = factories.InstructorFactory()
@@ -821,7 +814,6 @@ class CourseAITests(APITestUtilsMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(inst1.courses.count(), 1)
 
-    @unittest.skipIf(skip_seperate_tests, skip_seperate_tests_reason)
     def test_post(self):
         stu1 = factories.StudentFactory()
         inst1 = factories.InstructorFactory()
@@ -864,7 +856,6 @@ class CourseAITests(APITestUtilsMixin, APITestCase):
         response = self.post_course({})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @unittest.skipIf(skip_seperate_tests, skip_seperate_tests_reason)
     def test_post_with_instructors(self):
         inst1 = factories.InstructorFactory()
 
@@ -930,7 +921,6 @@ class CourseAITests(APITestUtilsMixin, APITestCase):
         response = self.delete_course(course1)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-    @unittest.skipIf(skip_seperate_tests, skip_seperate_tests_reason)
     def test_post_group(self):
         stu1 = factories.StudentFactory()
         inst1 = factories.InstructorFactory()
@@ -1177,7 +1167,6 @@ class CourseInstructorsAPITests(APITestUtilsMixin, APITestCase):
         response = self.get_course_instructor_detail(course1, teaches2)
         self.assertTrue(self.is_course_inst_fields(response.data))
 
-    @unittest.skipIf(skip_seperate_tests, skip_seperate_tests_reason)
     def test_post(self):
         stu1 = factories.StudentFactory()
         inst1 = factories.InstructorFactory()
@@ -1354,7 +1343,6 @@ class CourseStudentsAPITests(APITestUtilsMixin, APITestCase):
         response = self.get_course_student_detail(course1, takes1_1)
         self.assertTrue(self.is_other_course_stu_fields(response.data))
 
-    @unittest.skipIf(skip_seperate_tests, skip_seperate_tests_reason)
     def test_post(self):
         stu1 = factories.StudentFactory()
         inst1 = factories.InstructorFactory()
@@ -1522,7 +1510,6 @@ class GroupAPITests(APITestUtilsMixin, APITestCase):
         response = self.get_group_detail(group1)
         self.assertTrue(self.is_group_fields(response.data))
 
-    @unittest.skipIf(skip_seperate_tests, skip_seperate_tests_reason)
     def test_stu_change_group(self):
         course1 = factories.CourseFactory()
         group1 = factories.GroupFactory(course=course1)
@@ -1553,7 +1540,6 @@ class GroupAPITests(APITestUtilsMixin, APITestCase):
         group1 = Group.objects.get(pk=group1.pk)
         self.assertEqual(group1.name, 'foobar')
 
-    @unittest.skipIf(skip_seperate_tests, skip_seperate_tests_reason)
     def test_change_leader(self):
         course1 = factories.CourseFactory()
         stu1 = factories.StudentTakesCourseFactory(courses__course=course1)
