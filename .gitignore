@@ -59,6 +59,10 @@ node_modules/
 # User-uploaded media
 studentgrading/media/
 
+# migrations
+studentgrading/users/migrations/
+studentgrading/core/migrations/
+
 # Hitch directory
 tests/.hitch
 
