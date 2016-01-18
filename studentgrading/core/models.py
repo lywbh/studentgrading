@@ -1572,15 +1572,18 @@ class GroupMembership(ModelDiffMixin, models.Model):
 
 class CourseAssignment(models.Model):
 
+    def get_default_deadline():
+        return timezone.now() + datetime.timedelta(days=7)
+
     course = models.ForeignKey(Course, related_name='assignments')
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     deadline_dtm = models.DateTimeField(
-        default=timezone.now() + datetime.timedelta(days=7),
+        default=get_default_deadline,
         verbose_name='deadline',
     )
     assigned_dtm = models.DateTimeField(
-        default=timezone.now(),
+        default=timezone.now,
         verbose_name='assigned time',
     )
     grade_ratio = models.DecimalField(
