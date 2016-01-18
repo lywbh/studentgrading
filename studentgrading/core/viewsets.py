@@ -185,38 +185,13 @@ class FourLevelPermModelViewSet(FourLevelPermCreateModelMixin,
     pass
 
 
-class FourLevelPermNestedGenericViewSet(FourLevelPermGenericViewSet):
-    parent_field_name = None
-    parent_query_lookup = None
-    parent_view_name = None
-
-    def get_parent_field_name(self):
-        assert self.parent_field_name is not None, (
-            "'%s' should either include a `parent_field_name` attribute, "
-            "or override the `get_parent_field_name()` method."
-            % self.__class__.__name__
-        )
-        return self.parent_field_name
-
-    def get_parent_query_lookup(self):
-        if not self.parent_query_lookup:
-            return 'parent_lookup_{0}'.format(self.get_parent_field_name())
-        return self.parent_query_lookup
-
-    def get_parent_view_name(self):
-        if not self.parent_view_name:
-            return 'api:{0}-detail'.format(self.get_parent_field_name())
-        return self.parent_view_name
+class FourLevelPermNestedGenericViewSet(NestedViewSetMixin,
+                                        FourLevelPermGenericViewSet):
 
     def get_serializer_data(self, request, *args, **kwargs):
         data = request.data.copy()
-        parent_query_lookup = self.get_parent_query_lookup()
-        parent_field_name = self.get_parent_field_name()
-        parent_pk = request.resolver_match.kwargs[parent_query_lookup]
-
-        data.pop(parent_field_name, None)
-        data[parent_field_name] = reverse(self.get_parent_view_name(), kwargs={'pk': parent_pk})
-
+        parent_field_name, parent_pk = list(self.get_parents_query_dict().items())[0]
+        data[parent_field_name] = reverse('api:{0}-detail'.format(parent_field_name), kwargs=dict(pk=parent_pk))
         return data
 
 
@@ -264,7 +239,7 @@ class StudentViewSet(FourLevelPermModelViewSet):
 # -----------------------------------------------------------------------------
 # StudentCourses ViewSet
 # -----------------------------------------------------------------------------
-class StudentCoursesViewSet(NestedViewSetMixin, FourLevelPermNestedModelViewSet):
+class StudentCoursesViewSet(FourLevelPermNestedModelViewSet):
     queryset = Takes.objects.all()
     filter_backends = (FourLevelObjectPermissionsFilter, )
     permission_classes = (FourLevelObjectPermissions, )
@@ -275,8 +250,6 @@ class StudentCoursesViewSet(NestedViewSetMixin, FourLevelPermNestedModelViewSet)
     base_write_serializer_class = BaseWriteStudentCoursesSerializer
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class
-
-    parent_field_name = 'student'
 
 
 # -----------------------------------------------------------------------------
@@ -298,7 +271,7 @@ class InstructorViewSet(FourLevelPermModelViewSet):
 # -----------------------------------------------------------------------------
 # InstructorCourses ViewSets
 # -----------------------------------------------------------------------------
-class InstructorCoursesViewSet(NestedViewSetMixin, FourLevelPermNestedModelViewSet):
+class InstructorCoursesViewSet(FourLevelPermNestedModelViewSet):
     queryset = Teaches.objects.all()
     filter_backends = (FourLevelObjectPermissionsFilter, )
     permission_classes = (FourLevelObjectPermissions, )
@@ -309,8 +282,6 @@ class InstructorCoursesViewSet(NestedViewSetMixin, FourLevelPermNestedModelViewS
     base_write_serializer_class = write_serializer_class
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class
-
-    parent_field_name = 'instructor'
 
 
 # -----------------------------------------------------------------------------
@@ -381,8 +352,7 @@ class CourseViewSet(FourLevelPermModelViewSet):
 # -----------------------------------------------------------------------------
 # CourseInstructors ViewSets
 # -----------------------------------------------------------------------------
-class CourseInstructorsViewSet(NestedViewSetMixin,
-                               FourLevelPermListModelMixin,
+class CourseInstructorsViewSet(FourLevelPermListModelMixin,
                                FourLevelPermRetrieveModelMixin,
                                FourLevelPermCreateModelMixin,
                                FourLevelPermDestroyModelMixin,
@@ -398,13 +368,11 @@ class CourseInstructorsViewSet(NestedViewSetMixin,
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class
 
-    parent_field_name = 'course'
-
 
 # -----------------------------------------------------------------------------
 # CourseStudents ViewSets
 # -----------------------------------------------------------------------------
-class CourseStudentsViewSet(NestedViewSetMixin, FourLevelPermNestedModelViewSet):
+class CourseStudentsViewSet(FourLevelPermNestedModelViewSet):
     queryset = Takes.objects.all()
     filter_backends = (FourLevelObjectPermissionsFilter, )
     permission_classes = (FourLevelObjectPermissions, )
@@ -415,8 +383,6 @@ class CourseStudentsViewSet(NestedViewSetMixin, FourLevelPermNestedModelViewSet)
     base_write_serializer_class = BaseWriteCourseStudentsSerializer
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class
-
-    parent_field_name = 'course'
 
 
 # -----------------------------------------------------------------------------
@@ -442,8 +408,7 @@ class GroupViewSet(FourLevelPermListModelMixin,
     base_write_serializer_class = advanced_write_serializer_class
 
 
-class CourseGroupsViewSet(NestedViewSetMixin,
-                          FourLevelPermListModelMixin,
+class CourseGroupsViewSet(FourLevelPermListModelMixin,
                           FourLevelPermRetrieveModelMixin,
                           FourLevelPermNestedGenericViewSet):
     queryset = Group.objects.all()
