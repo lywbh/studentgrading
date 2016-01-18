@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth import get_user_model, authenticate
 from django.db.models.signals import post_save
 
-from test_plus.test import TestCase
+from django.test import TestCase
 from guardian.shortcuts import remove_perm, assign_perm
 import environ
 from . import factories
@@ -610,7 +610,7 @@ class CourseMethodTests(TestCase):
         course = factories.CourseFactory()
         self.assertEqual(course.assignments.count(), 0)
 
-        course.add_assignment(title="ass1", grade_ratio=0.1)
+        course.add_assignment(title="ass1", grade_ratio='0.1')
 
         self.assertEqual(course.assignments.count(), 1)
 
@@ -700,21 +700,21 @@ class CourseAssignmentTests(TestCase):
 
         # invalid grade ratio
         try:
-            factories.CourseAssignmentFactory(grade_ratio=0)
+            factories.CourseAssignmentFactory(grade_ratio='0')
         except ValidationError as e:
             self.fail(str(e))
 
         try:
-            factories.CourseAssignmentFactory(grade_ratio=1)
+            factories.CourseAssignmentFactory(grade_ratio='1')
         except ValidationError as e:
             self.fail(str(e))
 
         with self.assertRaises(ValidationError) as cm:
-            factories.CourseAssignmentFactory(grade_ratio=-0.1)
+            factories.CourseAssignmentFactory(grade_ratio='-0.1')
         self.assertIn('grade_ratio', cm.exception.message_dict)
 
         with self.assertRaises(ValidationError) as cm:
-            factories.CourseAssignmentFactory(grade_ratio=1.1)
+            factories.CourseAssignmentFactory(grade_ratio='1.1')
         self.assertIn('grade_ratio', cm.exception.message_dict)
 
 

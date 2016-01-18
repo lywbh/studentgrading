@@ -1877,8 +1877,8 @@ def get_role_of(user):
     # Get a list of model instance names(lowercase) whose model inherits UserProfile
     instance_names = [
         f.get_accessor_name()
-        for f in User._meta.get_all_related_objects()
-        if not f.field.rel.multiple
+        for f in User._meta.get_fields()
+        if f.one_to_one
     ]
     # Find the name this user has
     instance_related_name = None

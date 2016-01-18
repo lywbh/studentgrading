@@ -43,15 +43,13 @@ group_router = router.register(r'groups', core_viewsets.GroupViewSet)
 
 router.register(r'classes', core_viewsets.ClassViewSet)
 
-urlpatterns = patterns(
-    '',
+urlpatterns = [
     url(r'^', include(router.urls)),
-)
+]
 
-myself_urlpatterns = patterns(
-    '',
+myself_urlpatterns = [
     url(r'^myself/$', core_viewsets.Myself.as_view(), name='myself'),
-)
+]
 myself_urlpatterns = format_suffix_patterns(myself_urlpatterns)
 
 urlpatterns += myself_urlpatterns
