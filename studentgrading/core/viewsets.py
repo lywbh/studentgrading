@@ -238,6 +238,28 @@ class StudentViewSet(FourLevelPermModelViewSet):
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class
 
+    def get_queryset(self):
+
+        queryset = super(StudentViewSet, self).get_queryset()
+
+        course = self.request.query_params.get('course', None)
+        grouped = self.request.query_params.get('grouped', None)
+        if course:
+            queryset = queryset.takes_courses([course])
+
+        if grouped == 'True':
+            if course:
+                queryset = queryset.in_any_group_of(course)
+            else:
+                queryset = queryset.in_any_group(True)
+        elif grouped == 'False':
+            if course:
+                queryset = queryset.not_in_any_group_of(course)
+            else:
+                queryset = queryset.in_any_group(False)
+
+        return queryset
+
 
 # -----------------------------------------------------------------------------
 # StudentCourses ViewSet

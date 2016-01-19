@@ -6,23 +6,8 @@ import django_filters
 
 class StudentFilter(django_filters.FilterSet):
 
-    course = django_filters.NumberFilter(name='courses__pk')
-    grouped = django_filters.MethodFilter()
-
     class Meta:
         model = models.Student
-        fields = ['course', 'grouped']
-
-    def filter_grouped(self, queryset, value):
-        """
-        Filter against if student has any group.
-        """
-        if value == 'True':
-            queryset = queryset.in_any_group(True)
-        elif value == 'False':
-            queryset = queryset.in_any_group(False)
-
-        return queryset
 
 
 class GroupFilter(django_filters.FilterSet):

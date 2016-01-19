@@ -150,6 +150,13 @@ class StudentAPITests(APITestUtilsMixin, APITestCase):
         response = self.filter_student_list(dict(course=course1.pk, grouped=False))
         self.assertEqual(len(response.data), 4)
 
+        # other conditions
+        course2 = factories.CourseFactory()
+        factories.TakesFactory(student=stu1, course=course2)
+
+        response = self.filter_student_list(dict(course=course2.pk, grouped=False))
+        self.assertEqual(len(response.data), 1)
+
     def test_access_normal_student(self):
         stu1 = factories.StudentFactory()
         for i in range(10):
