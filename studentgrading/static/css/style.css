@@ -102,7 +102,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Main Tables */
-.courselist {
+.courselist, .assignmentlist {
   font-family:'微软雅黑';
 }
 
@@ -116,6 +116,23 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .courselist table thead {
+  font-size:115%;
+}
+
+.assignmentlist {
+  display:none;
+}
+
+.assignmentlist table {
+  background-color:white;
+  border-radius:0.1rem;
+  filter:alpha(opacity=80);
+  -moz-opacity:0.8;
+  -khtml-opacity:0.8;
+  opacity:0.8;
+}
+
+.assignmentlist table thead {
   font-size:115%;
 }
 
