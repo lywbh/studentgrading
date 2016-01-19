@@ -26,6 +26,7 @@ from .models import (
 from .permissions import (
     FourLevelObjectPermissions, CreateGroupPermission, IsInstructor, IsStudent,
 )
+from . import filters as my_filters
 
 
 # -----------------------------------------------------------------------------
@@ -223,9 +224,11 @@ class Myself(APIView):
 # -----------------------------------------------------------------------------
 class StudentViewSet(FourLevelPermModelViewSet):
     queryset = Student.objects.all()
+
     filter_backends = (FourLevelObjectPermissionsFilter,
                        filters.DjangoFilterBackend, )
-    filter_fields = ('s_class', )
+    filter_class = my_filters.StudentFilter
+
     permission_classes = (FourLevelObjectPermissions, )
     serializer_class = ReadStudentSerializer    # add this to ensure browsable api is okay
 
@@ -234,23 +237,6 @@ class StudentViewSet(FourLevelPermModelViewSet):
     base_write_serializer_class = write_serializer_class
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class
-
-    def get_queryset(self):
-        """
-        Filter against `course` id.
-        """
-        queryset = super(StudentViewSet, self).get_queryset()
-        course_id = self.request.query_params.get('course', None)
-        if course_id is not None:
-            course = Course.objects.get(pk=course_id)
-            queryset = queryset.takes_courses([course])
-
-            grouped = self.request.query_params.get('grouped', None)
-            if grouped == 'True':
-                queryset = queryset.in_any_group_of(course)
-            elif grouped == 'False':
-                queryset = queryset.not_in_any_group_of(course)
-        return queryset
 
 
 # -----------------------------------------------------------------------------
@@ -414,7 +400,11 @@ class GroupViewSet(FourLevelPermListModelMixin,
     http_method_names = [name for name in FourLevelPermGenericViewSet.http_method_names if name not in ['put']]
 
     queryset = Group.objects.all()
-    filter_backends = (FourLevelObjectPermissionsFilter, )
+
+    filter_backends = (FourLevelObjectPermissionsFilter,
+                       filters.DjangoFilterBackend)
+    filter_class = my_filters.GroupFilter
+
     permission_classes = (FourLevelObjectPermissions, )
     serializer_class = ReadGroupSerializer
 

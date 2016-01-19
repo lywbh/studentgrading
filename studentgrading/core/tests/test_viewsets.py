@@ -1486,8 +1486,16 @@ class CourseTakesAPITests(APITestUtilsMixin, APITestCase):
 
 class GroupAPITests(APITestUtilsMixin, APITestCase):
 
+    def setUp(self):
+        self.admin = User.objects.create_superuser(username='foobar', password='foobar')
+
     def get_group_list(self):
         return self.client.get(reverse('api:group-list'))
+
+    def filter_group_list(self, params):
+        url = patch_params_to_url(reverse('api:group-list'),
+                                  params)
+        return self.client.get(url)
 
     def get_group_detail(self, group):
         return self.client.get(reverse('api:group-detail', kwargs={'pk': group.pk}))
@@ -1501,6 +1509,52 @@ class GroupAPITests(APITestUtilsMixin, APITestCase):
     def is_group_fields(self, group_dict):
             return (set(group_dict.keys()) ==
                     {'url', 'id', 'course', 'number', 'name', 'leader', 'members', })
+
+    def test_filter_get(self):
+        course1 = factories.CourseFactory()
+        stu1 = factories.StudentTakesCourseFactory(courses__course=course1)
+        stu2 = factories.StudentTakesCourseFactory(courses__course=course1)
+        inst1 = factories.InstructorTeachesCourseFactory(courses__course=course1)
+
+        for i in range(2):
+            factories.GroupFactory(course=course1)
+
+        group1 = factories.GroupFactory(course=course1, leader=stu1)
+        factories.GroupMembershipFactory(group=group1, student=stu2)
+
+        course2 = factories.CourseFactory()
+        factories.TakesFactory(course=course2, student=stu2)
+        factories.TakesFactory(course=course2, student=stu1)
+        stu4 = factories.StudentTakesCourseFactory(courses__course=course1)
+
+        group2 = factories.GroupFactory(course=course2, leader=stu1)
+        factories.GroupMembershipFactory(group=group2, student=stu2)
+
+        # login as admin
+        self.force_authenticate_user(self.admin)
+
+        response = self.filter_group_list(dict(course=course1.pk))
+        self.assertEqual(len(response.data), 3)
+
+        response = self.filter_group_list(dict(leader=stu1.pk))
+        self.assertEqual(len(response.data), 2)
+
+        response = self.filter_group_list(dict(has_member=stu2.pk))
+        self.assertEqual(len(response.data), 2)
+
+        response = self.filter_group_list(dict(has_student=stu2.pk))
+        self.assertEqual(len(response.data), 2)
+        response = self.filter_group_list(dict(has_student=stu1.pk))
+        self.assertEqual(len(response.data), 2)
+
+        # has_student
+        stu3 = factories.StudentTakesCourseFactory(courses__course=course2)
+        factories.TakesFactory(course=course1, student=stu3)
+        group3 = factories.GroupFactory(course=course2, leader=stu3)
+        factories.GroupMembershipFactory(group=group1, student=stu3)
+
+        response = self.filter_group_list(dict(has_student=stu2.pk))
+        self.assertEqual(len(response.data), 2)
 
     def test_stu_get_group(self):
         course1 = factories.CourseFactory()

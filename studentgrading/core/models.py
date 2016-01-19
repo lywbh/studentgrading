@@ -520,6 +520,14 @@ class StudentQuerySet(models.QuerySet):
     def not_in_any_group_of(self, course):
         return self.filter(~(Q(leader_of__course=course) | Q(member_of__course=course)))
 
+    def in_any_group(self, any=True):
+        if any:
+            query = Q(leader_of__isnull=False) | Q(member_of__isnull=False)
+        else:
+            query = Q(leader_of__isnull=True) & Q(member_of__isnull=True)
+
+        return self.filter(query)
+
 
 class StudentManager(models.Manager):
     def create_student_with_courses(self, courses, **kwargs):
@@ -1363,6 +1371,15 @@ def teaches_remove_perms(instance, **kwargs):
     teaches.remove_instructor_perms(teaches.instructor)
 
 
+class GroupQuerySet(models.QuerySet):
+    def has_student(self, student):
+        return self.filter(Q(members=student) | Q(leader=student))
+
+
+class GroupManager(models.Manager):
+    pass
+
+
 class Group(ModelDiffMixin, models.Model):
 
     number = models.CharField(
@@ -1382,6 +1399,8 @@ class Group(ModelDiffMixin, models.Model):
     members = models.ManyToManyField(Student,
                                      related_name='member_of',
                                      through='GroupMembership',)
+
+    objects = GroupManager.from_queryset(GroupQuerySet)()
 
     class Meta:
         permissions = (

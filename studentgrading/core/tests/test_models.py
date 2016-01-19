@@ -180,7 +180,14 @@ class StudentManagerTests(TestCase):
         self.assertEqual(self.mang.takes_courses([course1]).takes_courses([course2]).count(),
                          0)
 
-    def test_in_group_of(self):
+        self.assertEqual(self.mang.takes_courses([course1.pk]).count(), 10)
+        self.assertEqual(self.mang.takes_courses([course1.pk, course2.pk]).count(), 20)
+        self.assertEqual(self.mang.takes_courses([str(course1.pk), course2, course3.pk]).count(),
+                         30)
+        self.assertEqual(self.mang.takes_courses([course1]).takes_courses([course2]).count(),
+                         0)
+
+    def test_in_any_group_of(self):
         course1 = factories.CourseFactory()
         for i in range(3):
             factories.StudentTakesCourseFactory(courses__course=course1)
@@ -191,8 +198,10 @@ class StudentManagerTests(TestCase):
         factories.GroupMembershipFactory(student=stu2, group=group1)
 
         self.assertEqual(Student.objects.in_any_group_of(course1).count(), 2)
+        self.assertEqual(Student.objects.in_any_group_of(course1.pk).count(), 2)
+        self.assertEqual(Student.objects.in_any_group(True).count(), 2)
 
-    def test_not_in_group_of(self):
+    def test_not_in_any_group_of(self):
         course1 = factories.CourseFactory()
         for i in range(3):
             factories.StudentTakesCourseFactory(courses__course=course1)
@@ -203,6 +212,8 @@ class StudentManagerTests(TestCase):
         factories.GroupMembershipFactory(student=stu2, group=group1)
 
         self.assertEqual(Student.objects.not_in_any_group_of(course1).count(), 3)
+        self.assertEqual(Student.objects.not_in_any_group_of(course1.pk).count(), 3)
+        self.assertEqual(Student.objects.in_any_group(False).count(), 3)
 
 
 class StudentPermsTests(TestCase):
