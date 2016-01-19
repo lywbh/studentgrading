@@ -654,12 +654,24 @@ class CreateAssignmentSerializer(CreateAssignmentMixin,
 
     deadline = serializers.DateTimeField(
         source='deadline_dtm',
+        required=False,
+    )
+
+    assigned_time = serializers.DateTimeField(
+        source='assigned_dtm',
+        read_only=True,
+    )
+
+    number = serializers.CharField(
+        source='get_no_in_course',
+        read_only=True,
     )
 
     class Meta:
         model = Assignment
         fields = ('url', 'id', 'course', 'title', 'description', 'deadline',
-                  'grade_ratio')
+                  'grade_ratio', 'assigned_time', 'number')
+        read_only_fields = ('assigned_time', 'number')
         extra_kwargs = {
             'url': {'view_name': 'api:assignment-detail'},
             'course': {'view_name': 'api:course-detail'},
@@ -670,16 +682,27 @@ class WriteAssignmentSerializer(serializers.HyperlinkedModelSerializer):
 
     deadline = serializers.DateTimeField(
         source='deadline_dtm',
+        required=False,
+    )
+
+    assigned_time = serializers.DateTimeField(
+        source='assigned_dtm',
+        read_only=True,
+    )
+
+    number = serializers.CharField(
+        source='get_no_in_course',
+        read_only=True,
     )
 
     class Meta:
         model = Assignment
-        fields = ('url', 'id', 'title', 'description', 'deadline',
-                  'grade_ratio')
+        fields = ('url', 'id', 'title', 'description', 'deadline', 'course',
+                  'grade_ratio', 'deadline', 'assigned_time', 'number')
+        read_only_fields = ('assigned_time', 'number', 'course')
         extra_kwargs = {
             'url': {'view_name': 'api:assignment-detail'},
             'course': {'view_name': 'api:course-detail'},
-            'deadline': {'source': 'deadline_dtm'},
         }
 
 

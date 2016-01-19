@@ -1629,7 +1629,7 @@ class Assignment(models.Model):
         if not self.deadline_dtm:
             return
 
-        if self.deadline_dtm <= self.assigned_dtm:
+        if self.deadline_dtm < timezone.now():
             raise ValidationError({'deadline_dtm': 'Deadline too early.'})
 
     def clean(self):

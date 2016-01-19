@@ -460,7 +460,7 @@ class AssignmentViewSet(viewsets.ModelViewSet):
     queryset = Assignment.objects.all()
 
     filter_backends = (filters.DjangoFilterBackend, )
-    filter_class = (core_filters.AssignmentFilter, )
+    filter_class = core_filters.AssignmentFilter
 
     def get_serializer_class(self):
         request_method = self.request.method

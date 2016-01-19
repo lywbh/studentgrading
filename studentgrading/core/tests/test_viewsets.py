@@ -2,9 +2,11 @@
 import unittest
 import json
 import decimal
+from datetime import timedelta
 
 from django.core.urlresolvers import reverse
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -1777,3 +1779,65 @@ class AssignmentAPITests(APITestUtilsMixin, APITestCase):
 
         response = self.get_assignment_detail(a1)
         self.assertTrue(self.is_read_field(response.data))
+
+    def test_filter_get(self):
+        course1 = factories.CourseFactory()
+        course2 = factories.CourseFactory()
+        a1 = factories.AssignmentFactory(course=course1)
+        a2 = factories.AssignmentFactory(course=course2)
+        a3 = factories.AssignmentFactory(course=course2)
+
+        inst1 = factories.InstructorFactory()
+        self.force_authenticate_user(inst1.user)
+
+        response = self.filter_assignment_list(dict(course=course1.pk))
+        self.assertEqual(len(response.data), 1)
+
+        response = self.filter_assignment_list(dict(course=course2.pk))
+        self.assertEqual(len(response.data), 2)
+
+    def test_post_assignment(self):
+        course1 = factories.CourseFactory()
+        inst1 = factories.InstructorTeachesCourseFactory(courses__course=course1)
+
+        self.force_authenticate_user(inst1.user)
+        response = self.post_assignment(dict(
+            course=get_course_url(course1), title='Assignment1', grade_ratio='0.1',
+        ))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(course1.assignments.count(), 1)
+
+        # test create will all fields
+        response = self.post_assignment(dict(
+            course=get_course_url(course1), title='Assignment2', grade_ratio='0.1',
+            description='Blablaba', deadline=(timezone.now() + timedelta(days=3)),
+        ))
+        print(get_formatted_json(response.data))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(course1.assignments.count(), 2)
+
+    def test_change_assignment(self):
+        course1 = factories.CourseFactory()
+        inst1 = factories.InstructorTeachesCourseFactory(courses__course=course1)
+        a1 = factories.AssignmentFactory(course=course1)
+
+        self.force_authenticate_user(inst1.user)
+        response = self.put_assignment(a1, dict(
+            title='Assignment2', grade_ratio='0.1',
+            description='Blablaba', deadline=(timezone.now() + timedelta(days=3)),
+        ))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        response = self.patch_assignment(a1, dict(
+            title='Assignment5', grade_ratio='0.2',
+        ))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_delete_assignment(self):
+        course1 = factories.CourseFactory()
+        inst1 = factories.InstructorTeachesCourseFactory(courses__course=course1)
+        a1 = factories.AssignmentFactory(course=course1)
+
+        self.force_authenticate_user(inst1.user)
+        response = self.delete_assignment(a1)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
