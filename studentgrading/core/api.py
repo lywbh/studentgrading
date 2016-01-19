@@ -13,21 +13,21 @@ router = ExtendedDefaultRouter()
 router.register(r'users', users_viewsets.UserViewSet)
 (
     router.register(r'students', core_viewsets.StudentViewSet)
-          .register(r'courses',
-                    core_viewsets.StudentCoursesViewSet,
+          .register(r'takes',
+                    core_viewsets.StudentTakesViewSet,
                     'student-course',
                     parents_query_lookups=['student'])
 )
 (
     router.register(r'instructors', core_viewsets.InstructorViewSet)
-          .register(r'courses',
-                    core_viewsets.InstructorCoursesViewSet,
+          .register(r'teaches',
+                    core_viewsets.InstructorTeachesViewSet,
                     'instructor-course',
                     parents_query_lookups=['instructor'])
 )
 course_router = router.register(r'courses', core_viewsets.CourseViewSet)
-course_router.register(r'instructors',
-                       core_viewsets.CourseInstructorsViewSet,
+course_router.register(r'teaches',
+                       core_viewsets.CourseTeachesViewSet,
                        'course-instructor',
                        parents_query_lookups=['course'])
 course_router.register(r'takes',

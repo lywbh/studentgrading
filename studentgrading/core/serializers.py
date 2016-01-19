@@ -164,15 +164,14 @@ class CreateAssignmentMixin(object):
 # Student Serializers
 # -----------------------------------------------------------------------------
 class CreateStudentSerializer(serializers.HyperlinkedModelSerializer):
-    courses = serializers.HyperlinkedIdentityField(
-        source='takes',
+    takes = serializers.HyperlinkedIdentityField(
         view_name='api:student-course-list',
         lookup_url_kwarg='parent_lookup_student',
     )
 
     class Meta:
         model = Student
-        fields = ('url', 'id', 'user', 'name', 'sex', 's_id', 's_class', 'courses', )
+        fields = ('url', 'id', 'user', 'name', 'sex', 's_id', 's_class', 'takes', )
         extra_kwargs = {
             'url': {'view_name': 'api:student-detail', },
             'user': {
@@ -185,7 +184,7 @@ class CreateStudentSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class ReadStudentSerializer(serializers.HyperlinkedModelSerializer):
-    courses = serializers.HyperlinkedIdentityField(
+    takes = serializers.HyperlinkedIdentityField(
         source='takes',
         view_name='api:student-course-list',
         lookup_url_kwarg='parent_lookup_student',
@@ -193,8 +192,8 @@ class ReadStudentSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = Student
-        fields = ('url', 'id', 'user', 'name', 'sex', 's_id', 's_class', 'courses', )
-        read_only_fields = ('user', 'name', 'sex', 's_id', 's_class', 'courses', )
+        fields = ('url', 'id', 'user', 'name', 'sex', 's_id', 's_class', 'takes', )
+        read_only_fields = ('user', 'name', 'sex', 's_id', 's_class', 'takes', )
         extra_kwargs = {
             'url': {'view_name': 'api:student-detail', },
             'user': {
@@ -212,7 +211,7 @@ class ReadStudentSerializer(serializers.HyperlinkedModelSerializer):
             del ret['user']
 
             if not has_four_level_perm('core.view_student_advanced', user, instance):
-                del ret['courses']
+                del ret['takes']
 
                 if not has_four_level_perm('core.view_student_normal', user, instance):
                     del ret['s_id']
@@ -225,15 +224,14 @@ class ReadStudentSerializer(serializers.HyperlinkedModelSerializer):
 # Instructor Serializers
 # -----------------------------------------------------------------------------
 class CreateInstructorSerializer(serializers.HyperlinkedModelSerializer):
-    courses = serializers.HyperlinkedIdentityField(
-        source='teaches',
+    teaches = serializers.HyperlinkedIdentityField(
         view_name='api:instructor-course-list',
         lookup_url_kwarg='parent_lookup_instructor',
     )
 
     class Meta:
         model = Instructor
-        fields = ('url', 'id', 'user', 'name', 'sex', 'inst_id', 'courses')
+        fields = ('url', 'id', 'user', 'name', 'sex', 'inst_id', 'teaches')
         extra_kwargs = {
             'url': {'view_name': 'api:instructor-detail', },
             'user': {'view_name': 'api:user-detail', },
@@ -242,16 +240,15 @@ class CreateInstructorSerializer(serializers.HyperlinkedModelSerializer):
 
 class ReadInstructorSerializer(serializers.HyperlinkedModelSerializer):
 
-    courses = serializers.HyperlinkedIdentityField(
-        source='teaches',
+    teaches = serializers.HyperlinkedIdentityField(
         view_name='api:instructor-course-list',
         lookup_url_kwarg='parent_lookup_instructor',
     )
 
     class Meta:
         model = Instructor
-        fields = ('url', 'id', 'user', 'name', 'sex', 'inst_id', 'courses')
-        read_only_fields = ('user', 'name', 'sex', 'inst_id', 'courses', )
+        fields = ('url', 'id', 'user', 'name', 'sex', 'inst_id', 'teaches')
+        read_only_fields = ('user', 'name', 'sex', 'inst_id', 'teaches', )
         extra_kwargs = {
             'url': {'view_name': 'api:instructor-detail', },
             'user': {'view_name': 'api:user-detail', },
@@ -270,9 +267,9 @@ class ReadInstructorSerializer(serializers.HyperlinkedModelSerializer):
 
 
 # -----------------------------------------------------------------------------
-# StudentCourses Serializers (students/{pk}/courses/)
+# StudentTakes Serializers (students/{pk}/courses/)
 # -----------------------------------------------------------------------------
-class CreateStudentCoursesSerializer(CreateTakesMixin,
+class CreateStudentTakesSerializer(CreateTakesMixin,
                                      serializers.HyperlinkedModelSerializer):
 
     url = ChildHyperlinkedIdentityField(
@@ -289,7 +286,7 @@ class CreateStudentCoursesSerializer(CreateTakesMixin,
         }
 
 
-class ReadStudentCoursesSerializer(ReadTakesMixin,
+class ReadStudentTakesSerializer(ReadTakesMixin,
                                    serializers.HyperlinkedModelSerializer):
 
     url = ChildHyperlinkedIdentityField(
@@ -307,16 +304,17 @@ class ReadStudentCoursesSerializer(ReadTakesMixin,
         }
 
 
-class BaseWriteStudentCoursesSerializer(CreateStudentCoursesSerializer):
+class BaseWriteStudentTakesSerializer(CreateStudentTakesSerializer):
 
-    class Meta(CreateStudentCoursesSerializer.Meta):
-        fields = ('url', 'id', 'grade')
+    class Meta(CreateStudentTakesSerializer.Meta):
+        fields = ('url', 'id', 'student', 'course', 'grade')
+        read_only_fields = ('student', 'course')
 
 
 # -----------------------------------------------------------------------------
-# InstructorCourses Serializers (instructors/{pk}/courses/)
+# InstructorTeaches Serializers (instructors/{pk}/courses/)
 # -----------------------------------------------------------------------------
-class CreateInstructorCoursesSerializer(CreateTeachesMixin,
+class CreateInstructorTeachesSerializer(CreateTeachesMixin,
                                         serializers.HyperlinkedModelSerializer):
 
     url = ChildHyperlinkedIdentityField(
@@ -333,7 +331,7 @@ class CreateInstructorCoursesSerializer(CreateTeachesMixin,
         }
 
 
-class ReadInstructorCoursesSerializer(serializers.HyperlinkedModelSerializer):
+class ReadInstructorTeachesSerializer(serializers.HyperlinkedModelSerializer):
 
     url = ChildHyperlinkedIdentityField(
         view_name='api:instructor-course-detail',
@@ -445,8 +443,8 @@ class BaseWriteCourseSerializer(CreateCourseSerializer):
 # -----------------------------------------------------------------------------
 # CourseInstructors Serializers (courses/{pk}/instructors/)
 # -----------------------------------------------------------------------------
-class CourseInstructorsSerializer(CreateTeachesMixin,
-                                  serializers.HyperlinkedModelSerializer):
+class CourseTeachesSerializer(CreateTeachesMixin,
+                              serializers.HyperlinkedModelSerializer):
 
     url = ChildHyperlinkedIdentityField(
         view_name='api:course-instructor-detail',
@@ -462,7 +460,7 @@ class CourseInstructorsSerializer(CreateTeachesMixin,
         }
 
 
-class ReadCourseInstructorsSerializer(serializers.HyperlinkedModelSerializer):
+class ReadCourseTeachesSerializer(serializers.HyperlinkedModelSerializer):
 
     url = ChildHyperlinkedIdentityField(
         view_name='api:course-instructor-detail',

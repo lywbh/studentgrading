@@ -10,11 +10,11 @@ from guardian.shortcuts import get_objects_for_user
 
 from .serializers import (
     CreateStudentSerializer, ReadStudentSerializer,
-    CreateStudentCoursesSerializer, ReadStudentCoursesSerializer, BaseWriteStudentCoursesSerializer,
+    CreateStudentTakesSerializer, ReadStudentTakesSerializer, BaseWriteStudentTakesSerializer,
     CreateInstructorSerializer, ReadInstructorSerializer,
-    CreateInstructorCoursesSerializer, ReadInstructorCoursesSerializer,
+    CreateInstructorTeachesSerializer, ReadInstructorTeachesSerializer,
     CreateCourseSerializer, ReadCourseSerializer, BaseWriteCourseSerializer,
-    CourseInstructorsSerializer, ReadCourseInstructorsSerializer,
+    CourseTeachesSerializer, ReadCourseTeachesSerializer,
     CreateCourseTakesSerializer, ReadCourseTakesSerializer, BaseWriteCourseTakesSerializer,
     ReadGroupSerializer, CreateGroupSerializer, WriteGroupSerializer,
     ClassSerializer,
@@ -268,15 +268,15 @@ class StudentViewSet(FourLevelPermModelViewSet):
 # -----------------------------------------------------------------------------
 # StudentCourses ViewSet
 # -----------------------------------------------------------------------------
-class StudentCoursesViewSet(FourLevelPermNestedModelViewSet):
+class StudentTakesViewSet(FourLevelPermNestedModelViewSet):
     queryset = Takes.objects.all()
     filter_backends = (FourLevelObjectPermissionsFilter, )
     permission_classes = (FourLevelObjectPermissions, )
-    serializer_class = ReadStudentCoursesSerializer     # add this to ensure browsable api is okay
+    serializer_class = ReadStudentTakesSerializer     # add this to ensure browsable api is okay
 
-    read_serializer_class = ReadStudentCoursesSerializer
-    write_serializer_class = CreateStudentCoursesSerializer
-    base_write_serializer_class = BaseWriteStudentCoursesSerializer
+    read_serializer_class = ReadStudentTakesSerializer
+    write_serializer_class = CreateStudentTakesSerializer
+    base_write_serializer_class = BaseWriteStudentTakesSerializer
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class
 
@@ -300,14 +300,14 @@ class InstructorViewSet(FourLevelPermModelViewSet):
 # -----------------------------------------------------------------------------
 # InstructorCourses ViewSets
 # -----------------------------------------------------------------------------
-class InstructorCoursesViewSet(FourLevelPermNestedModelViewSet):
+class InstructorTeachesViewSet(FourLevelPermNestedModelViewSet):
     queryset = Teaches.objects.all()
     filter_backends = (FourLevelObjectPermissionsFilter, )
     permission_classes = (FourLevelObjectPermissions, )
-    serializer_class = ReadInstructorCoursesSerializer
+    serializer_class = ReadInstructorTeachesSerializer
 
-    read_serializer_class = ReadInstructorCoursesSerializer
-    write_serializer_class = CreateInstructorCoursesSerializer
+    read_serializer_class = ReadInstructorTeachesSerializer
+    write_serializer_class = CreateInstructorTeachesSerializer
     base_write_serializer_class = write_serializer_class
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class
@@ -381,18 +381,18 @@ class CourseViewSet(FourLevelPermModelViewSet):
 # -----------------------------------------------------------------------------
 # CourseInstructors ViewSets
 # -----------------------------------------------------------------------------
-class CourseInstructorsViewSet(FourLevelPermListModelMixin,
-                               FourLevelPermRetrieveModelMixin,
-                               FourLevelPermCreateModelMixin,
-                               FourLevelPermDestroyModelMixin,
-                               FourLevelPermNestedGenericViewSet):
+class CourseTeachesViewSet(FourLevelPermListModelMixin,
+                           FourLevelPermRetrieveModelMixin,
+                           FourLevelPermCreateModelMixin,
+                           FourLevelPermDestroyModelMixin,
+                           FourLevelPermNestedGenericViewSet):
     queryset = Teaches.objects.all()
     filter_backends = (FourLevelObjectPermissionsFilter, )
     permission_classes = (FourLevelObjectPermissions, )
-    serializer_class = ReadCourseInstructorsSerializer
+    serializer_class = ReadCourseTeachesSerializer
 
-    read_serializer_class = ReadCourseInstructorsSerializer
-    write_serializer_class = CourseInstructorsSerializer
+    read_serializer_class = ReadCourseTeachesSerializer
+    write_serializer_class = CourseTeachesSerializer
     base_write_serializer_class = write_serializer_class
     normal_write_serializer_class = write_serializer_class
     advanced_write_serializer_class = write_serializer_class

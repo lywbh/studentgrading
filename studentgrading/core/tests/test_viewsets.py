@@ -120,11 +120,11 @@ class StudentAPITests(APITestUtilsMixin, APITestCase):
 
     def is_instructor_fields(self, data_dict):
         return (set(data_dict.keys()) ==
-                {'url', 'id', 'name', 'sex', 's_id', 's_class', 'courses'})
+                {'url', 'id', 'name', 'sex', 's_id', 's_class', 'takes'})
 
     def is_itself_fields(self, data_dict):
         return (set(data_dict.keys()) ==
-                {'url', 'id', 'name', 'sex', 's_id', 's_class', 'courses', 'user'})
+                {'url', 'id', 'name', 'sex', 's_id', 's_class', 'takes', 'user'})
 
     def test_filter_get(self):
         course1 = factories.CourseFactory()
@@ -310,15 +310,15 @@ class InstructorAPITests(APITestUtilsMixin, APITestCase):
 
     def is_itself_fields(self, inst_dict):
         return (set(inst_dict.keys()) ==
-                {'url', 'id', 'name', 'sex', 'inst_id', 'user', 'courses'})
+                {'url', 'id', 'name', 'sex', 'inst_id', 'user', 'teaches'})
 
     def is_other_inst_fields(self, inst_dict):
         return (set(inst_dict.keys()) ==
-                {'url', 'id', 'name', 'sex', 'inst_id', 'courses'})
+                {'url', 'id', 'name', 'sex', 'inst_id', 'teaches'})
 
     def is_course_stu_fields(self, inst_dict):
         return (set(inst_dict.keys()) ==
-                {'url', 'id', 'name', 'sex', 'courses'})
+                {'url', 'id', 'name', 'sex', 'teaches'})
 
     def test_access_normal_instructor(self):
         inst1 = factories.InstructorFactory()
@@ -1812,7 +1812,6 @@ class AssignmentAPITests(APITestUtilsMixin, APITestCase):
             course=get_course_url(course1), title='Assignment2', grade_ratio='0.1',
             description='Blablaba', deadline=(timezone.now() + timedelta(days=3)),
         ))
-        print(get_formatted_json(response.data))
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(course1.assignments.count(), 2)
 
