@@ -686,20 +686,20 @@ class WriteAssignmentSerializer(serializers.HyperlinkedModelSerializer):
         required=False,
     )
 
-    assigned_time = serializers.DateTimeField(
-        source='assigned_dtm',
+    number = serializers.CharField(
+        source='get_no_in_course',
         read_only=True,
     )
 
-    number = serializers.CharField(
-        source='get_no_in_course',
+    assigned_time = serializers.DateTimeField(
+        source='assign_dtm',
         read_only=True,
     )
 
     class Meta:
         model = Assignment
         fields = ('url', 'id', 'title', 'description', 'deadline', 'course',
-                  'grade_ratio', 'deadline', 'assigned_time', 'number')
+                  'grade_ratio', 'assigned_time', 'number')
         read_only_fields = ('assigned_time', 'number', 'course')
         extra_kwargs = {
             'url': {'view_name': 'api:assignment-detail'},

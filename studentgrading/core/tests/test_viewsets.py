@@ -1824,6 +1824,11 @@ class AssignmentAPITests(APITestUtilsMixin, APITestCase):
         ))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+        response = self.patch_assignment(a1, dict(
+            deadline=(timezone.now() - timedelta(days=3)),
+        ))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_delete_assignment(self):
         course1 = factories.CourseFactory()
         inst1 = factories.InstructorTeachesCourseFactory(courses__course=course1)

@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
+from django.core.exceptions import ValidationError
+
 from rest_framework import viewsets, filters, mixins, status
 from rest_framework.response import Response
 from rest_framework.relations import reverse
 from rest_framework.decorators import detail_route, list_route
 from rest_framework.views import APIView
+from rest_framework import serializers
 
 from rest_framework_extensions.mixins import NestedViewSetMixin
 from guardian.shortcuts import get_objects_for_user
@@ -31,6 +34,24 @@ from . import filters as core_filters
 
 
 SAFE_METHODS = ('GET', 'HEAD', 'OPTIONS')
+
+
+# -----------------------------------------------------------------------------
+# Mixins
+# -----------------------------------------------------------------------------
+class HandleValidErrorViewSetMixin(object):
+
+    def perform_update(self, serializer):
+        try:
+            serializer.save()
+        except ValidationError as e:
+            raise serializers.ValidationError(e.message_dict)
+
+    def perform_create(self, serializer):
+        try:
+            serializer.save()
+        except ValidationError as e:
+            raise serializers.ValidationError(e.message_dict)
 
 
 # -----------------------------------------------------------------------------
@@ -226,7 +247,7 @@ class Myself(APIView):
 # -----------------------------------------------------------------------------
 # Student ViewSets
 # -----------------------------------------------------------------------------
-class StudentViewSet(FourLevelPermModelViewSet):
+class StudentViewSet(HandleValidErrorViewSetMixin, FourLevelPermModelViewSet):
     queryset = Student.objects.all()
 
     filter_backends = (FourLevelObjectPermissionsFilter,
@@ -268,7 +289,7 @@ class StudentViewSet(FourLevelPermModelViewSet):
 # -----------------------------------------------------------------------------
 # StudentCourses ViewSet
 # -----------------------------------------------------------------------------
-class StudentTakesViewSet(FourLevelPermNestedModelViewSet):
+class StudentTakesViewSet(HandleValidErrorViewSetMixin, FourLevelPermNestedModelViewSet):
     queryset = Takes.objects.all()
     filter_backends = (FourLevelObjectPermissionsFilter, )
     permission_classes = (FourLevelObjectPermissions, )
@@ -284,7 +305,7 @@ class StudentTakesViewSet(FourLevelPermNestedModelViewSet):
 # -----------------------------------------------------------------------------
 # Instructor ViewSets
 # -----------------------------------------------------------------------------
-class InstructorViewSet(FourLevelPermModelViewSet):
+class InstructorViewSet(HandleValidErrorViewSetMixin, FourLevelPermModelViewSet):
     queryset = Instructor.objects.all()
     filter_backends = (FourLevelObjectPermissionsFilter, )
     permission_classes = (FourLevelObjectPermissions, )
@@ -300,7 +321,7 @@ class InstructorViewSet(FourLevelPermModelViewSet):
 # -----------------------------------------------------------------------------
 # InstructorCourses ViewSets
 # -----------------------------------------------------------------------------
-class InstructorTeachesViewSet(FourLevelPermNestedModelViewSet):
+class InstructorTeachesViewSet(HandleValidErrorViewSetMixin, FourLevelPermNestedModelViewSet):
     queryset = Teaches.objects.all()
     filter_backends = (FourLevelObjectPermissionsFilter, )
     permission_classes = (FourLevelObjectPermissions, )
@@ -316,7 +337,7 @@ class InstructorTeachesViewSet(FourLevelPermNestedModelViewSet):
 # -----------------------------------------------------------------------------
 # Course ViewSets
 # -----------------------------------------------------------------------------
-class CourseViewSet(FourLevelPermModelViewSet):
+class CourseViewSet(HandleValidErrorViewSetMixin, FourLevelPermModelViewSet):
     queryset = Course.objects.all()
     filter_backends = (FourLevelObjectPermissionsFilter, )
     permission_classes = (FourLevelObjectPermissions, )
@@ -381,7 +402,8 @@ class CourseViewSet(FourLevelPermModelViewSet):
 # -----------------------------------------------------------------------------
 # CourseInstructors ViewSets
 # -----------------------------------------------------------------------------
-class CourseTeachesViewSet(FourLevelPermListModelMixin,
+class CourseTeachesViewSet(HandleValidErrorViewSetMixin,
+                           FourLevelPermListModelMixin,
                            FourLevelPermRetrieveModelMixin,
                            FourLevelPermCreateModelMixin,
                            FourLevelPermDestroyModelMixin,
@@ -401,7 +423,8 @@ class CourseTeachesViewSet(FourLevelPermListModelMixin,
 # -----------------------------------------------------------------------------
 # CourseTakes ViewSets
 # -----------------------------------------------------------------------------
-class CourseTakesViewSet(FourLevelPermNestedModelViewSet):
+class CourseTakesViewSet(HandleValidErrorViewSetMixin,
+                         FourLevelPermNestedModelViewSet):
     queryset = Takes.objects.all()
     filter_backends = (FourLevelObjectPermissionsFilter, )
     permission_classes = (FourLevelObjectPermissions, )
@@ -417,7 +440,8 @@ class CourseTakesViewSet(FourLevelPermNestedModelViewSet):
 # -----------------------------------------------------------------------------
 # Group ViewSets
 # -----------------------------------------------------------------------------
-class GroupViewSet(FourLevelPermListModelMixin,
+class GroupViewSet(HandleValidErrorViewSetMixin,
+                   FourLevelPermListModelMixin,
                    FourLevelPermRetrieveModelMixin,
                    FourLevelPermUpdateModelMixin,
                    FourLevelPermDestroyModelMixin,
@@ -441,7 +465,8 @@ class GroupViewSet(FourLevelPermListModelMixin,
     base_write_serializer_class = advanced_write_serializer_class
 
 
-class CourseGroupsViewSet(FourLevelPermListModelMixin,
+class CourseGroupsViewSet(HandleValidErrorViewSetMixin,
+                          FourLevelPermListModelMixin,
                           FourLevelPermRetrieveModelMixin,
                           FourLevelPermNestedGenericViewSet):
     queryset = Group.objects.all()
@@ -455,7 +480,8 @@ class CourseGroupsViewSet(FourLevelPermListModelMixin,
 # -----------------------------------------------------------------------------
 # Assignment ViewSets
 # -----------------------------------------------------------------------------
-class AssignmentViewSet(viewsets.ModelViewSet):
+class AssignmentViewSet(HandleValidErrorViewSetMixin,
+                        viewsets.ModelViewSet):
 
     queryset = Assignment.objects.all()
 
@@ -472,7 +498,8 @@ class AssignmentViewSet(viewsets.ModelViewSet):
             return WriteAssignmentSerializer
 
 
-class ClassViewSet(viewsets.ModelViewSet):
+class ClassViewSet(HandleValidErrorViewSetMixin,
+                   viewsets.ModelViewSet):
 
     queryset = Class.objects.all()
     serializer_class = ClassSerializer
