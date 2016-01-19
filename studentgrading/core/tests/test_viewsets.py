@@ -1815,6 +1815,15 @@ class AssignmentAPITests(APITestUtilsMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(course1.assignments.count(), 2)
 
+        # other insts post
+        inst2 = factories.InstructorFactory()
+
+        self.force_authenticate_user(inst2.user)
+        response = self.post_assignment(dict(
+            course=get_course_url(course1), title='Assignment1', grade_ratio='0.1',
+        ))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_change_assignment(self):
         course1 = factories.CourseFactory()
         inst1 = factories.InstructorTeachesCourseFactory(courses__course=course1)
