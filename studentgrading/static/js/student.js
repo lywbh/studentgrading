@@ -3,87 +3,237 @@
 });
 
 function showAllCourse() {
-    var data = getAllCourse();
-    $('.courselist table tbody').empty();
-    for(var i = 0, len = data.length; i < len; ++i) {
-        var newtr = $('<tr></tr>');
-        var newtd = $(
-            '<td>' + data[i]['fields'].title + '</td>' +
-            '<td>' + data[i]['fields'].year + data[i]['fields'].semester + '</td>' +
-            '<td>' + data[i]['fields'].description + '</td>' +
-            '<td><button type="button" class="btn btn-primary btn-lg listbtn" data-toggle="modal" onclick="showCourseDetails(' + data[i]['pk'] + ')">详情</button></td>'
-        );
-        newtr.append(newtd);
-        $('.courselist table tbody').append(newtr);
-    }
-    $('.menu-opt li:eq(0)').addClass('active');
-    $('.menu-opt li:eq(1)').removeClass('active');
+    $.ajax({
+       url: '../../api/courses/taking/', 
+       success: function(data) {
+           console.log(data);
+           $('.courselist table tbody').empty();
+           for(var i = 0, len = data.length; i < len; ++i) {
+               var newtr = $('<tr></tr>');
+               var newtd = $(
+                   '<td>' + data[i].title + '</td>' +
+                   '<td>' + data[i].year + data[i].semester + '</td>' +
+                   '<td>' + data[i].description + '</td>' +
+                   '<td><button type="button" class="btn btn-primary btn-lg listbtn" data-toggle="modal" onclick="showCourseDetails(' + "'" + data[i].url + "'" + ')">详情</button></td>'
+               );
+               newtr.append(newtd);
+               $('.courselist table tbody').append(newtr);
+           }
+           $('.menu-opt li:eq(0)').addClass('active');
+           $('.menu-opt li:eq(1)').removeClass('active');
+       },
+       error: function(data){
+           console.log(data);
+       }
+    });
 }
 
-function showCourseDetails(id) {
-    var data = getCourse(id);
-    if(data) {
-        $('#course_id').val(data.id);
-        $('#course_name').html(data.title);
-        $('#course_date').html(data.year + data.semester);
-        $('#course_description').html(data.description);
-        $('#coursedetail').modal();
-    }
+function showCourseDetails(url) {
+    $.ajax({
+       url: url, 
+       success: function(data) {
+           console.log(data);
+           $('#course_id').val(data.id);
+           $('#course_name').html(data.title);
+           $('#course_date').html(data.year + data.semester);
+           $('#course_description').html(data.description);
+           $('#coursedetail').modal();
+       },
+       error: function(data){
+           console.log(data);
+       }
+    });
 }
 
 function showMyGroup() {
-    var course_id = $('#course_id').val();
-    var data = getMyGroup(course_id);
-    if(data) {
-        $('#mygroup table tbody').empty();
-        for(var i = 0, len = data['content'].length; i < len; ++i) {
-            var newtr = $('<tr></tr>');
-            var newtd = $(
-                '<td>' + data['content'][i].s_id + '</td>' +
-                '<td>' + data['content'][i].name + '</td>' +
-                '<td>' + data['content'][i].s_class + '</td>'
-            );
-            newtr.append(newtd);
-            $('#mygroup table tbody').append(newtr);
+    $.ajax({
+        url: '../../api/myself/',
+        success: function(data) {
+            console.log(data);
+            $.ajax({
+                url: data.url,
+                success: function(data) {
+                    console.log(data);
+                    $.ajax({
+                       url: '../../api/groups/?course=' + $('#course_id').val() + '&has_student=' + data.id,
+                       success: function(data) {
+                           console.log(data);
+                           if(data.length == 0) {
+                               alert("You are not in a group!")
+                           }
+                           else if(data.length == 1) {
+                               $('#mygroup table tbody').empty();
+                               $.ajax({
+                                   url: data[0].leader,
+                                   async: false,
+                                   success: function(data) {
+                                       console.log(data);
+                                       var s_class;
+                                       $.ajax({
+                                           url: data.s_class,
+                                           async: false,
+                                           success: function(data) {
+                                               console.log(data);
+                                               s_class = data;
+                                           },
+                                           fail: function(data) {
+                                               console.log(data);
+                                           }
+                                       });
+                                       var newtr = $('<tr></tr>');
+                                       var newtd = $(
+                                           '<td>' + data.s_id + '</td>' +
+                                           '<td>' + data.name + '</td>' +
+                                           '<td>' + s_class.class_id + '</td>'
+                                       );
+                                       newtr.append(newtd);
+                                       $('#mygroup table tbody').append(newtr);
+                                   },
+                                   fail: function(data) {
+                                       console.log(data);
+                                   }
+                               });
+                               for(var i = 0, len = data[0].members.length; i < len; ++i) {
+                                   var member;
+                                   $.ajax({
+                                      url: data[0].members[i],
+                                      async: false,
+                                      success: function(data) {
+                                          console.log(data);
+                                          member = data;
+                                      },
+                                      fail: function(data) {
+                                          console.log(data);
+                                      }
+                                   });
+                                   var s_class;
+                                   if(member.s_id && member.s_class) {
+                                       $.ajax({
+                                          url: member.s_class,
+                                          async: false,
+                                          success: function(data) {
+                                              console.log(data);
+                                              s_class = data;
+                                          },
+                                          fail: function(data) {
+                                              console.log(data);
+                                          }
+                                       });
+                                       var newtr = $('<tr></tr>');
+                                       var newtd = $(
+                                           '<td>' + member.s_id + '</td>' +
+                                           '<td>' + member.name + '</td>' +
+                                           '<td>' + s_class.class_id + '</td>'
+                                       );
+                                       newtr.append(newtd);
+                                   }
+                                   else{
+                                       s_class = undefined;
+                                       var newtr = $('<tr></tr>');
+                                       var newtd = $(
+                                           '<td></td>' +
+                                           '<td>' + member.name + '</td>' +
+                                           '<td></td>'
+                                       );
+                                       newtr.append(newtd);
+                                   }
+                                   $('#mygroup table tbody').append(newtr);
+                               }
+                               $('#mygroup').modal();
+                           }
+                           else{
+                               console.log("something terribly wrong!")
+                           }
+                       },
+                       error: function(data) {
+                           console.log(data);
+                       }
+                    });
+                },
+                error: function(data) {
+                    console.log(data);
+                }
+            });
+        },
+        error: function(data) {
+            console.log(data);
         }
-        $('#mygroup').modal();
-    }
-    else {
-        alert("You haven't joined a group!");
-    }
+    });
 }
 
 function showNewGroup() {
-    var course_id = $('#course_id').val();
-    if(getMyGroup(course_id)) {
-        alert("You've already joined a group!")
-    }
-    else{
-        var data = getCandidateStudent(course_id);
-        $('#newgroup #candidatelist').empty();
-        $('#newgroup table tbody').empty();
-        for(var i = 0, len = data.length; i < len; ++i) {
-            var newoption = $('<option value="' + data[i]['fields'].s_id + '">' + data[i]['fields'].name + '</option>');
-            $('#newgroup #candidatelist').append(newoption);
+    $.ajax({
+        url: '../../api/myself/',
+        success: function(data) {
+            console.log(data);
+            var self_id;
+            $.ajax({
+                url: data.url,
+                success: function(data) {
+                    console.log(data);
+                    self_id = data.id;
+                    $.ajax({
+                       url: '../../api/groups/?course=' + $('#course_id').val() + '&has_student=' + data.id,
+                       success: function(data) {
+                           console.log(data);
+                           if(data.length == 0) {
+                               $.ajax({
+                                   url: '../../api/students/?course=' + $('#course_id').val() + '&grouped=False',
+                                   success: function(data) {
+                                       console.log(data);
+                                       $('#newgroup #candidatelist').empty();
+                                       $('#newgroup table tbody').empty();
+                                       for(var i = 0, len = data.length; i < len; ++i) {
+                                           if(data[i].id !== self_id) {
+                                               var newoption = $('<option value="' + data[i].id + '" url="' + data[i].url + '">' + data[i].name + '</span></option>');
+                                               $('#newgroup #candidatelist').append(newoption);
+                                           }
+                                       }
+                                       $('#newgroup').modal();
+                                   },
+                                   error: function(data) {
+                                       console.log(data);
+                                   }
+                               });
+                           }
+                           else{
+                               alert("You've already joined a group!")
+                           }
+                       },
+                       error: function(data) {
+                           console.log(data);
+                       }
+                    });
+                },
+                error: function(data) {
+                    console.log(data);
+                }
+            });
+        },
+        error: function(data) {
+            console.log(data);
         }
-        $('#newgroup').modal();
-    }
+    });
 }
 
 function addMember() {
-    var id = $("#candidatelist option:selected").val();
-    var name = $("#candidatelist option:selected").text();
-    var newtr = $(
-        '<tr><td>' + id + 
-        '</td><td>' + name +
-        '</td><td><button type="button" class="btn btn-primary btn-lg listbtn" data-toggle="modal" onclick="delMember(' + id + ', ' + "'" + name + "'" + ')">删除</button></td></tr>'
-    );
-    $('#candidatelist option[value=' + id + ']').remove();
-    $('#newgroup table tbody').append(newtr);
+    if($('#newgroup #candidatelist').html()) {
+        var id = $("#candidatelist option:selected").val();
+        var name = $("#candidatelist option:selected").text();
+        var url = $("#candidatelist option:selected").attr("url");
+        var newtr = $(
+            '<tr><td>' + id + 
+            '</td><td>' + name +
+            '</td><td style="display:none">' + url +
+            '</td><td><button type="button" class="btn btn-primary btn-lg listbtn" data-toggle="modal" onclick="delMember(' + id + ", '" + name + "', '" + url + "'" + ')">删除</button></td></tr>'
+        );
+        $('#candidatelist option[value=' + id + ']').remove();
+        $('#newgroup table tbody').append(newtr);
+    }   
 }
 
-function delMember(id, name) {
-    var newoption = $('<option value="' + id + '">' + name + '</option>');
+function delMember(id, name, url) {
+    var newoption = $('<option value="' + id + '" url="' + url + '">' + name + '</option>');
     $('#newgroup #candidatelist').append(newoption);
     $('#newgroup table tbody tr').each(function() {
         if($(this).children().eq(0).html() == id) {
@@ -93,24 +243,39 @@ function delMember(id, name) {
 }
 
 function saveGroup() {
-    var data = [];
+    var members = [];
     $('#newgroup table tbody tr').each(function() {
-        data.push($(this).children().eq(0).html());
+        members.push($(this).children().eq(2).html());
     });
     $.ajax({
-       url: 'savegroup/',
-       type: 'POST',
-       data: {
-           idList: data,
-           course_id: $('#course_id').val(),
-           group_name: $('#new_group_name').val()
-       },
-       success: function(data) {
-           console.log(data);
-           $('#newgroup').modal('hide');
-       },
-       fail: function(data) {
-           console.log(data);
-       }
+        url: '../../api/myself/',
+        success: function(data) {
+            console.log(data);
+            console.log({
+                    name: $('#new_group_name').val(),
+                    leader: data.url,
+                    members: members
+                });
+            $.ajax({
+                url: '../../api/courses/' + $('#course_id').val() + '/add_group/',
+                type: 'POST',
+                data: {
+                    name: $('#new_group_name').val(),
+                    leader: data.url,
+                    members: members
+                },
+                success: function(data) {
+                    console.log(data);
+                    $('#newgroup').modal('hide');
+                },
+                error: function(data) {
+                    console.log(data);
+                }
+            });
+        },
+        error: function(data) {
+            console.log(data);
+            alert(data.responseText);
+        }
     });
 }
