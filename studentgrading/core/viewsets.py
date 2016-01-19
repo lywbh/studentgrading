@@ -214,9 +214,9 @@ class Myself(APIView):
     def get(self, request, format=None):
         user_role = get_role_of(request.user)
         if isinstance(user_role, Student):
-            url = reverse('api:student-detail', kwargs=dict(pk=user_role.pk))
+            url = reverse('api:student-detail', kwargs=dict(pk=user_role.pk), request=request)
         elif isinstance(user_role, Instructor):
-            url = reverse('api:instructor-detail', kwargs=dict(pk=user_role.pk))
+            url = reverse('api:instructor-detail', kwargs=dict(pk=user_role.pk), request=request)
         else:
             return Response(dict(detail="You are not a student or instructor."), status=status.HTTP_400_BAD_REQUEST)
 
