@@ -7,6 +7,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth import get_user_model
 from django.contrib.auth import get_user_model, authenticate
 from django.db.models.signals import post_save
+from django.utils import timezone
 
 from django.test import TestCase
 from guardian.shortcuts import remove_perm, assign_perm
@@ -14,6 +15,7 @@ import environ
 from . import factories
 from ..models import (
     Course, Student, Instructor, ContactInfoType, import_student, get_role_of,
+    Assignment,
     assign_four_level_perm, has_four_level_perm
 )
 
@@ -702,11 +704,10 @@ class CoursePermsTests(TestCase):
         self.assertFalse(course1.has_base_perms_for_instructor(user_inst1))
 
 
-class CourseAssignmentTests(TestCase):
+class AssignmentTests(TestCase):
 
     def test_clean(self):
-        from studentgrading.core.models import CourseAssignment
-        crs1 = CourseAssignment(
+        crs1 = Assignment(
             course=factories.CourseFactory(),
             title='',
             grade_ratio=0.1,
@@ -718,27 +719,38 @@ class CourseAssignmentTests(TestCase):
     def test_save(self):
         # empty title
         with self.assertRaises(ValidationError) as cm:
-            factories.CourseAssignmentFactory(title='')
+            factories.AssignmentFactory(title='')
         self.assertIn('title', cm.exception.message_dict)
 
         # invalid grade ratio
         try:
-            factories.CourseAssignmentFactory(grade_ratio='0')
+            factories.AssignmentFactory(grade_ratio='0')
         except ValidationError as e:
             self.fail(str(e))
 
         try:
-            factories.CourseAssignmentFactory(grade_ratio='1')
+            factories.AssignmentFactory(grade_ratio='1')
         except ValidationError as e:
             self.fail(str(e))
 
         with self.assertRaises(ValidationError) as cm:
-            factories.CourseAssignmentFactory(grade_ratio='-0.1')
+            factories.AssignmentFactory(grade_ratio='-0.1')
         self.assertIn('grade_ratio', cm.exception.message_dict)
 
         with self.assertRaises(ValidationError) as cm:
-            factories.CourseAssignmentFactory(grade_ratio='1.1')
+            factories.AssignmentFactory(grade_ratio='1.1')
         self.assertIn('grade_ratio', cm.exception.message_dict)
+
+        # invalid deadline
+        import datetime
+        with self.assertRaises(ValidationError) as cm:
+            factories.AssignmentFactory(
+                course=factories.CourseFactory(),
+                title='Test1',
+                grade_ratio='0.1',
+                deadline_dtm=str(timezone.now() - datetime.timedelta(days=1)),
+            )
+        self.assertIn('deadline_dtm', cm.exception.message_dict)
 
 
 class InstructorMethodTests(TestCase):

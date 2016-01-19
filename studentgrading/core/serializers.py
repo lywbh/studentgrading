@@ -7,7 +7,7 @@ from rest_framework.relations import reverse
 from .models import (
     Student, Class, Course, Takes,
     Instructor, Teaches, Group, GroupMembership,
-    has_four_level_perm,
+    has_four_level_perm, Assignment,
     get_role_of,
 )
 
@@ -90,8 +90,8 @@ class CreateTakesMixin(object):
             user = request.user
             user_role = get_role_of(user)
             if (isinstance(user_role, Instructor) and
-                        request.method == 'POST' and
-                        'course' in validated_data):
+                    request.method == 'POST' and
+                    'course' in validated_data):
                 # When instructor tries to add a 'takes' with this student,
                 # it can only add the student to its course
                 request_instructor = user_role
@@ -123,9 +123,9 @@ class CreateTeachesMixin(object):
             user_role = get_role_of(user)
 
             if (isinstance(user_role, Instructor) and
-                        request.method == 'POST' and
-                        'course' in validated_data and
-                        'instructor' in validated_data):
+                    request.method == 'POST' and
+                    'course' in validated_data and
+                    'instructor' in validated_data):
                 # When instructor tries to add 'teaches' with a course not given by itself,
                 # it can only add itself to this course
                 requeset_inst = user_role
@@ -134,6 +134,28 @@ class CreateTeachesMixin(object):
                 if not instructor.pk == requeset_inst.pk and not course.is_given_by(requeset_inst):
                     raise serializers.ValidationError({
                         'course': 'Cannot add an instructor to a course not given by you.'
+                    })
+        return validated_data
+
+
+class CreateAssignmentMixin(object):
+
+    def to_internal_value(self, data):
+        validated_data = super(CreateAssignmentMixin, self).to_internal_value(data)
+        if getattr(self, 'context'):
+            request = self.context['request']
+            user = request.user
+            user_role = get_role_of(user)
+
+            if (isinstance(user_role, Instructor) and
+                    request.method == 'POST' and
+                    'course' in validated_data):
+                # Instructor can only add an assignment to a course given by itself
+                requeset_inst = user_role
+                course = validated_data['course']
+                if not course.is_given_by(requeset_inst):
+                    raise serializers.ValidationError({
+                        'course': 'Cannot add an assignment to a course not given by you.'
                     })
         return validated_data
 
@@ -542,7 +564,7 @@ class ReadGroupSerializer(serializers.HyperlinkedModelSerializer):
     members = serializers.HyperlinkedRelatedField(
         many=True,
         read_only=True,
-        view_name='api:group-detail',
+        view_name='api:student-detail',
     )
 
     class Meta:
@@ -593,6 +615,72 @@ class WriteGroupSerializer(serializers.HyperlinkedModelSerializer):
             group.group_memberships.get(student=leader).delete()
             GroupMembership.objects.create(student=old_leader, group=group)
         return group
+
+
+# -----------------------------------------------------------------------------
+# Group Serializers (groups/, courses/{pk}/groups/)
+# -----------------------------------------------------------------------------
+class ReadAssignmentSerializer(serializers.HyperlinkedModelSerializer):
+
+    deadline = serializers.DateTimeField(
+        source='deadline_dtm',
+        read_only=True,
+    )
+
+    assigned_time = serializers.DateTimeField(
+        source='assigned_dtm',
+        read_only=True,
+    )
+
+    number = serializers.CharField(
+        source='get_no_in_course',
+        read_only=True,
+    )
+
+    class Meta:
+        model = Assignment
+        fields = ('url', 'id', 'course', 'title', 'description', 'deadline',
+                  'assigned_time', 'grade_ratio', 'number')
+        read_only_fields = ('course', 'title', 'description', 'deadline',
+                            'assigned_time', 'grade_ratio', 'number')
+        extra_kwargs = {
+            'url': {'view_name': 'api:assignment-detail'},
+            'course': {'view_name': 'api:course-detail'},
+        }
+
+
+class CreateAssignmentSerializer(CreateAssignmentMixin,
+                                 serializers.HyperlinkedModelSerializer):
+
+    deadline = serializers.DateTimeField(
+        source='deadline_dtm',
+    )
+
+    class Meta:
+        model = Assignment
+        fields = ('url', 'id', 'course', 'title', 'description', 'deadline',
+                  'grade_ratio')
+        extra_kwargs = {
+            'url': {'view_name': 'api:assignment-detail'},
+            'course': {'view_name': 'api:course-detail'},
+        }
+
+
+class WriteAssignmentSerializer(serializers.HyperlinkedModelSerializer):
+
+    deadline = serializers.DateTimeField(
+        source='deadline_dtm',
+    )
+
+    class Meta:
+        model = Assignment
+        fields = ('url', 'id', 'title', 'description', 'deadline',
+                  'grade_ratio')
+        extra_kwargs = {
+            'url': {'view_name': 'api:assignment-detail'},
+            'course': {'view_name': 'api:course-detail'},
+            'deadline': {'source': 'deadline_dtm'},
+        }
 
 
 class ClassSerializer(serializers.HyperlinkedModelSerializer):

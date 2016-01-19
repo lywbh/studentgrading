@@ -41,6 +41,8 @@ course_router.register(r'groups',
 
 group_router = router.register(r'groups', core_viewsets.GroupViewSet)
 
+router.register(r'assignments', core_viewsets.AssignmentViewSet)
+
 router.register(r'classes', core_viewsets.ClassViewSet)
 
 urlpatterns = [

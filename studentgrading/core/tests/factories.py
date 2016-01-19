@@ -8,7 +8,7 @@ from faker.providers import BaseProvider
 
 from studentgrading.users.models import User
 from studentgrading.core.models import (
-    CourseAssignment, Course, UserProfile, Student, Instructor,
+    Assignment, Course, UserProfile, Student, Instructor,
     Class, Takes, Teaches, Group, ContactInfoType, ContactInfo,
     StudentContactInfo, InstructorContactInfo, GroupContactInfo,
     GroupMembership,
@@ -162,9 +162,9 @@ class InstructorTeachesCourseFactory(InstructorFactory):
     courses = factory.RelatedFactory(TeachesFactory, 'instructor')
 
 
-class CourseAssignmentFactory(factory.django.DjangoModelFactory):
+class AssignmentFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = CourseAssignment
+        model = Assignment
 
     course = factory.SubFactory(CourseFactory)
     title = factory.LazyAttributeSequence(

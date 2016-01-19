@@ -18,15 +18,19 @@ from .serializers import (
     CreateCourseTakesSerializer, ReadCourseTakesSerializer, BaseWriteCourseTakesSerializer,
     ReadGroupSerializer, CreateGroupSerializer, WriteGroupSerializer,
     ClassSerializer,
+    ReadAssignmentSerializer, CreateAssignmentSerializer, WriteAssignmentSerializer
 )
 from .models import (
-    Student, Class, Course, Takes, Instructor, Teaches, Group,
+    Student, Class, Course, Takes, Instructor, Teaches, Group, Assignment,
     get_role_of,
 )
 from .permissions import (
     FourLevelObjectPermissions, CreateGroupPermission, IsInstructor, IsStudent,
 )
-from . import filters as my_filters
+from . import filters as core_filters
+
+
+SAFE_METHODS = ('GET', 'HEAD', 'OPTIONS')
 
 
 # -----------------------------------------------------------------------------
@@ -227,7 +231,7 @@ class StudentViewSet(FourLevelPermModelViewSet):
 
     filter_backends = (FourLevelObjectPermissionsFilter,
                        filters.DjangoFilterBackend, )
-    filter_class = my_filters.StudentFilter
+    filter_class = core_filters.StudentFilter
 
     permission_classes = (FourLevelObjectPermissions, )
     serializer_class = ReadStudentSerializer    # add this to ensure browsable api is okay
@@ -425,7 +429,7 @@ class GroupViewSet(FourLevelPermListModelMixin,
 
     filter_backends = (FourLevelObjectPermissionsFilter,
                        filters.DjangoFilterBackend)
-    filter_class = my_filters.GroupFilter
+    filter_class = core_filters.GroupFilter
 
     permission_classes = (FourLevelObjectPermissions, )
     serializer_class = ReadGroupSerializer
@@ -446,6 +450,26 @@ class CourseGroupsViewSet(FourLevelPermListModelMixin,
     serializer_class = ReadGroupSerializer
 
     read_serializer_class = ReadGroupSerializer
+
+
+# -----------------------------------------------------------------------------
+# Assignment ViewSets
+# -----------------------------------------------------------------------------
+class AssignmentViewSet(viewsets.ModelViewSet):
+
+    queryset = Assignment.objects.all()
+
+    filter_backends = (filters.DjangoFilterBackend, )
+    filter_class = (core_filters.AssignmentFilter, )
+
+    def get_serializer_class(self):
+        request_method = self.request.method
+        if request_method in SAFE_METHODS:
+            return ReadAssignmentSerializer
+        elif request_method == 'POST':
+            return CreateAssignmentSerializer
+        else:
+            return WriteAssignmentSerializer
 
 
 class ClassViewSet(viewsets.ModelViewSet):

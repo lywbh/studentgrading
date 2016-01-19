@@ -23,3 +23,12 @@ class GroupFilter(django_filters.FilterSet):
 
     def filter_has_student(self, queryset, value):
         return queryset.has_student(value)
+
+
+class AssignmentFilter(django_filters.FilterSet):
+
+    course = django_filters.NumberFilter(name='course__id')
+
+    class Meta:
+        model = models.Assignment
+        fields = ['course']

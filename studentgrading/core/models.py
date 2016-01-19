@@ -1592,20 +1592,17 @@ class GroupMembership(ModelDiffMixin, models.Model):
         super(GroupMembership, self).save(*args, **kwargs)
 
 
-class CourseAssignment(models.Model):
-
-    def get_default_deadline():
-        return timezone.now() + datetime.timedelta(days=7)
+class Assignment(models.Model):
 
     course = models.ForeignKey(Course, related_name='assignments')
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     deadline_dtm = models.DateTimeField(
-        default=get_default_deadline,
+        null=True, blank=True,
         verbose_name='deadline',
     )
     assigned_dtm = models.DateTimeField(
-        default=timezone.now,
+        auto_now_add=True,
         verbose_name='assigned time',
     )
     grade_ratio = models.DecimalField(
@@ -1623,14 +1620,27 @@ class CourseAssignment(models.Model):
 
     def __str__(self):
         return '{course}-#{no}-{title}'.format(
-            no=self.no_in_course,
+            no=self.get_no_in_course(),
             title=self.title,
             course=self.course,
         )
 
+    def validate_deadline(self):
+        if not self.deadline_dtm:
+            return
+
+        if self.deadline_dtm <= self.assigned_dtm:
+            raise ValidationError({'deadline_dtm': 'Deadline too early.'})
+
+    def clean(self):
+        self.validate_deadline()
+
     def save(self, *args, **kwargs):
         self.full_clean()
-        super(CourseAssignment, self).save(*args, **kwargs)
+        super(Assignment, self).save(*args, **kwargs)
+        if not self.deadline_dtm:
+            self.deadline_dtm = self.assigned_dtm + datetime.timedelta(days=7)
+            self.save()
 
     def get_no_in_course(self):
         """

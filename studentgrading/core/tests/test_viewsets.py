@@ -1732,3 +1732,48 @@ class GroupAPITests(APITestUtilsMixin, APITestCase):
 
         # get group
         print(get_formatted_json(self.get_group_detail(group1).data))
+
+
+class AssignmentAPITests(APITestUtilsMixin, APITestCase):
+
+    def get_assignment_list(self):
+        return self.client.get(reverse('api:assignment-list'))
+
+    def filter_assignment_list(self, params):
+        url = patch_params_to_url(reverse('api:assignment-list'),
+                                  params)
+        return self.client.get(url)
+
+    def get_assignment_detail(self, assignment):
+        return self.client.get(reverse('api:assignment-detail', kwargs={'pk': assignment.pk}))
+
+    def post_assignment(self, assignment_dict):
+        return self.client.post(reverse('api:assignment-list'), assignment_dict)
+
+    def put_assignment(self, assignment, assignment_dict):
+        return self.client.put(reverse('api:assignment-detail', kwargs={'pk': assignment.pk}), assignment_dict)
+
+    def patch_assignment(self, assignment, assignment_dict):
+        return self.client.patch(reverse('api:assignment-detail', kwargs={'pk': assignment.pk}), assignment_dict)
+
+    def delete_assignment(self, assignment):
+        return self.client.delete(reverse('api:assignment-detail', kwargs={'pk': assignment.pk}))
+
+    def is_read_field(self, data_dict):
+        return (set(data_dict.keys()) ==
+                {'url', 'id', 'course', 'title', 'description', 'deadline',
+                 'assigned_time', 'grade_ratio', 'number'})
+
+    def test_get_assignment(self):
+        course1 = factories.CourseFactory()
+        a1 = factories.AssignmentFactory(course=course1)
+        a2 = factories.AssignmentFactory(course=course1)
+
+        inst1 = factories.InstructorFactory()
+        self.force_authenticate_user(inst1.user)
+
+        response = self.get_assignment_list()
+        self.assertEqual(len(response.data), 2)
+
+        response = self.get_assignment_detail(a1)
+        self.assertTrue(self.is_read_field(response.data))

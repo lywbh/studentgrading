@@ -4,7 +4,7 @@ from django.contrib import admin
 
 from .models import (
     Instructor, Student, Course, Class,
-    CourseAssignment, ContactInfoType,
+    ContactInfoType,
     InstructorContactInfo, StudentContactInfo,
     Teaches, Takes,
 )
@@ -135,4 +135,3 @@ admin.site.register(Course, CourseAdmin)
 admin.site.register(Class, ClassAdmin)
 admin.site.register(ContactInfoType)
 admin.site.register(Takes, TakesAdmin)
-admin.site.register(CourseAssignment, AssignmentAdmin)
