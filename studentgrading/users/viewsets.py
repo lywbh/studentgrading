@@ -2,9 +2,12 @@
 from rest_framework import viewsets
 from rest_framework import filters
 
-from .serializers import NormalUserSerializer, AdminUserSerializer
+from .serializers import ReadlUserSerializer, CreateUserSerializer
 from .models import User
-from .permissions import UserObjectPermissions
+from .permissions import IsUserItself
+
+
+SAFE_METHODS = ('GET', 'HEAD', 'OPTIONS')
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -13,9 +16,10 @@ class UserViewSet(viewsets.ModelViewSet):
     """
     queryset = User.objects.all()
     filter_backends = (filters.DjangoObjectPermissionsFilter, )
-    permission_classes = (UserObjectPermissions, )
+    permission_classes = (IsUserItself, )
 
     def get_serializer_class(self):
-        if self.request.user.is_staff:
-            return AdminUserSerializer
-        return NormalUserSerializer
+        if self.request.method in SAFE_METHODS:
+            return ReadlUserSerializer
+        else:
+            return CreateUserSerializer

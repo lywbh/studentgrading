@@ -298,7 +298,7 @@ class InstructorAPITests(APITestUtilsMixin, APITestCase):
 
     def test_access_normal_instructor(self):
         inst1 = factories.InstructorFactory()
-        for i in range(10):
+        for i in range(3):
             factories.InstructorFactory()
 
         self.force_authenticate_user(inst1.user)
@@ -342,6 +342,13 @@ class InstructorAPITests(APITestUtilsMixin, APITestCase):
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
             response = self.delete_instructor(inst)
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        course = factories.CourseFactory()
+        inst = factories.InstructorTeachesCourseFactory(courses__course=course)
+        stu = factories.StudentTakesCourseFactory(courses__course=course)
+        self.force_authenticate_user(stu.user)
+        response = self.get_instructor_list()
+        response = self.get_instructor_detail(inst)
 
     def test_inst_access_course_inst(self):
         course1 = factories.CourseFactory()

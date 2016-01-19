@@ -11,6 +11,8 @@ from .models import (
     get_role_of,
 )
 
+from studentgrading.users import serializers as users_serializers
+
 
 # -----------------------------------------------------------------------------
 # Custom Fields Class
@@ -190,15 +192,14 @@ class ReadStudentSerializer(serializers.HyperlinkedModelSerializer):
         lookup_url_kwarg='parent_lookup_student',
     )
 
+    user = users_serializers.ReadlUserSerializer()
+
     class Meta:
         model = Student
         fields = ('url', 'id', 'user', 'name', 'sex', 's_id', 's_class', 'takes', )
         read_only_fields = ('user', 'name', 'sex', 's_id', 's_class', 'takes', )
         extra_kwargs = {
             'url': {'view_name': 'api:student-detail', },
-            'user': {
-                'view_name': 'api:user-detail',
-            },
             's_class': {
                 'view_name': 'api:class-detail',
             }
@@ -244,6 +245,8 @@ class ReadInstructorSerializer(serializers.HyperlinkedModelSerializer):
         view_name='api:instructor-course-list',
         lookup_url_kwarg='parent_lookup_instructor',
     )
+
+    user = users_serializers.ReadlUserSerializer()
 
     class Meta:
         model = Instructor
