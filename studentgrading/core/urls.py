@@ -12,6 +12,9 @@ urlpatterns = [
         'template_name': 'core/login.html',
         'authentication_form': forms.LoginAuthenticationForm,
     }, name='login'),
+    url(r'^logout/$', django.contrib.auth.views.logout, {
+        'next_page': '../login',
+    }, name='logout'),
     url(r'^~redirect/$', views.UserRedirectView.as_view(), name='redirect'),
     url(r'^teacher/', include([
             url(r'^$', views.InstructorView.as_view(), name='teacher'),

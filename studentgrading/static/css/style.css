@@ -51,12 +51,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /*** 通用头 ***/
-#header {
+.navbar {
   font-family:'微软雅黑';
-  filter:alpha(opacity=95);
-  -moz-opacity:0.95;
-  -khtml-opacity:0.95;
-  opacity:0.95;
 }
 
 /* Hide for mobile, show later */
