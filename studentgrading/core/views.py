@@ -15,14 +15,22 @@ from .models import Student, Instructor, get_role_of
 class InstructorView(LoginRequiredMixin, View):
 
     def get(self, request):
-        return render(request, 'core/teacher.html')
+        role = get_role_of(self.request.user)
+        if isinstance(role, Instructor):
+            return render(request, 'core/teacher.html')
+        else:
+            return HttpResponseRedirect('../login/')
 
 
 class StudentView(LoginRequiredMixin, View):
 
     def get(self, request):
-        return render(request, 'core/student.html')
-
+        role = get_role_of(self.request.user)
+        if isinstance(role, Student):
+            return render(request, 'core/student.html')
+        else:
+            return HttpResponseRedirect('../login/')
+        
 
 class UserRedirectView(LoginRequiredMixin, RedirectView):
     permanent = False
