@@ -256,12 +256,12 @@ function showAllAssignment() {
        url: '../../api/courses/giving/', 
        success: function(data) {
            console.log(data);
+           $('.assignmentlist table tbody').empty();
            for(var i = 0, len = data.length; i < len; ++i) {
                $.ajax({
                    url: '../../api/assignments/?course=' + data[i].id,
                    success: function(data) {
                        console.log(data);
-                       $('.assignmentlist table tbody').empty();
                        for(var j = 0, len = data.length; j < len; ++j) {
                            var course;
                            $.ajax({
