@@ -10,7 +10,7 @@ urlpatterns = [
     url(settings.ADMIN_URL, include(admin.site.urls)),
 
     url(
-        r'^core/',
+        r'^',
         include("studentgrading.core.urls", namespace="core")
     ),
 

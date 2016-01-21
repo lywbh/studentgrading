@@ -6,7 +6,6 @@ function showAllCourse() {
     $.ajax({
        url: '../../api/courses/taking/', 
        success: function(data) {
-           console.log(data);
            $('.courselist table tbody').empty();
            for(var i = 0, len = data.length; i < len; ++i) {
                var newtr = $('<tr></tr>');
@@ -23,7 +22,6 @@ function showAllCourse() {
            $('.menu-opt li:eq(1)').removeClass('active');
        },
        error: function(data){
-           console.log(data);
        }
     });
 }
@@ -32,7 +30,6 @@ function showCourseDetails(url) {
     $.ajax({
        url: url, 
        success: function(data) {
-           console.log(data);
            $('#course_id').val(data.id);
            $('#course_name').html(data.title);
            $('#course_date').html(data.year + data.semester);
@@ -40,7 +37,6 @@ function showCourseDetails(url) {
            $('#coursedetail').modal();
        },
        error: function(data){
-           console.log(data);
        }
     });
 }
@@ -49,15 +45,12 @@ function showMyGroup() {
     $.ajax({
         url: '../../api/myself/',
         success: function(data) {
-            console.log(data);
             $.ajax({
                 url: data.url,
                 success: function(data) {
-                    console.log(data);
                     $.ajax({
                        url: '../../api/groups/?course=' + $('#course_id').val() + '&has_student=' + data.id,
                        success: function(data) {
-                           console.log(data);
                            if(data.length == 0) {
                                alert("You are not in a group!")
                            }
@@ -67,17 +60,14 @@ function showMyGroup() {
                                    url: data[0].leader,
                                    async: false,
                                    success: function(data) {
-                                       console.log(data);
                                        var s_class;
                                        $.ajax({
                                            url: data.s_class,
                                            async: false,
                                            success: function(data) {
-                                               console.log(data);
                                                s_class = data;
                                            },
                                            fail: function(data) {
-                                               console.log(data);
                                            }
                                        });
                                        var newtr = $('<tr></tr>');
@@ -90,7 +80,6 @@ function showMyGroup() {
                                        $('#mygroup table tbody').append(newtr);
                                    },
                                    fail: function(data) {
-                                       console.log(data);
                                    }
                                });
                                for(var i = 0, len = data[0].members.length; i < len; ++i) {
@@ -99,11 +88,9 @@ function showMyGroup() {
                                       url: data[0].members[i],
                                       async: false,
                                       success: function(data) {
-                                          console.log(data);
                                           member = data;
                                       },
                                       fail: function(data) {
-                                          console.log(data);
                                       }
                                    });
                                    var s_class;
@@ -112,11 +99,9 @@ function showMyGroup() {
                                           url: member.s_class,
                                           async: false,
                                           success: function(data) {
-                                              console.log(data);
                                               s_class = data;
                                           },
                                           fail: function(data) {
-                                              console.log(data);
                                           }
                                        });
                                        var newtr = $('<tr></tr>');
@@ -142,21 +127,17 @@ function showMyGroup() {
                                $('#mygroup').modal();
                            }
                            else{
-                               console.log("something terribly wrong!")
                            }
                        },
                        error: function(data) {
-                           console.log(data);
                        }
                     });
                 },
                 error: function(data) {
-                    console.log(data);
                 }
             });
         },
         error: function(data) {
-            console.log(data);
         }
     });
 }
@@ -165,22 +146,18 @@ function showNewGroup() {
     $.ajax({
         url: '../../api/myself/',
         success: function(data) {
-            console.log(data);
             var self_id;
             $.ajax({
                 url: data.url,
                 success: function(data) {
-                    console.log(data);
                     self_id = data.id;
                     $.ajax({
                        url: '../../api/groups/?course=' + $('#course_id').val() + '&has_student=' + data.id,
                        success: function(data) {
-                           console.log(data);
                            if(data.length == 0) {
                                $.ajax({
                                    url: '../../api/students/?course=' + $('#course_id').val() + '&grouped=False',
                                    success: function(data) {
-                                       console.log(data);
                                        $('#newgroup #candidatelist').empty();
                                        $('#newgroup table tbody').empty();
                                        for(var i = 0, len = data.length; i < len; ++i) {
@@ -192,7 +169,6 @@ function showNewGroup() {
                                        $('#newgroup').modal();
                                    },
                                    error: function(data) {
-                                       console.log(data);
                                    }
                                });
                            }
@@ -201,17 +177,14 @@ function showNewGroup() {
                            }
                        },
                        error: function(data) {
-                           console.log(data);
                        }
                     });
                 },
                 error: function(data) {
-                    console.log(data);
                 }
             });
         },
         error: function(data) {
-            console.log(data);
         }
     });
 }
@@ -250,12 +223,6 @@ function saveGroup() {
     $.ajax({
         url: '../../api/myself/',
         success: function(data) {
-            console.log(data);
-            console.log({
-                    name: $('#new_group_name').val(),
-                    leader: data.url,
-                    members: members
-                });
             $.ajax({
                 url: '../../api/courses/' + $('#course_id').val() + '/add_group/',
                 type: 'POST',
@@ -265,16 +232,13 @@ function saveGroup() {
                     members: members
                 }, true),
                 success: function(data) {
-                    console.log(data);
                     $('#newgroup').modal('hide');
                 },
                 error: function(data) {
-                    console.log(data);
                 }
             });
         },
         error: function(data) {
-            console.log(data);
             alert(data.responseText);
         }
     });

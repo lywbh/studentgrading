@@ -8,6 +8,7 @@ from . import views
 from . import forms
 
 urlpatterns = [
+    url(r'^$', views.UserRedirectView.as_view()),
     url(r'^login/$', django.contrib.auth.views.login, {
         'template_name': 'core/login.html',
         'authentication_form': forms.LoginAuthenticationForm,

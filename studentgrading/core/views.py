@@ -41,6 +41,8 @@ class UserRedirectView(LoginRequiredMixin, RedirectView):
             return reverse('core:student')
         elif isinstance(role, Instructor):
             return reverse('core:teacher')
+        else:
+            return reverse('core:login')
 
 
 def getTeachCourse(request):

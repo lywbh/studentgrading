@@ -6,7 +6,6 @@ function showAllCourse() {
     $.ajax({
        url: '../../api/courses/giving/', 
        success: function(data) {
-           console.log(data);
            $('.courselist table tbody').empty();
            for(var i = 0, len = data.length; i < len; ++i) {
                var newtr = $('<tr></tr>');
@@ -26,7 +25,6 @@ function showAllCourse() {
            $('.menu-opt li:eq(1)').removeClass('active');
        },
        error: function(data){
-           console.log(data);
        }
     });
 }
@@ -35,7 +33,6 @@ function showCourseDetails(url) {
     $.ajax({
        url: url, 
        success: function(data) {
-           console.log(data);
            $('#course_id').val(data.id);
            $('#course_name').html(data.title);
            $('#course_date').html(data.year + data.semester);
@@ -46,7 +43,6 @@ function showCourseDetails(url) {
            $('#coursedetail').modal();
        },
        error: function(data){
-           console.log(data);
        }
     });
 }
@@ -55,7 +51,6 @@ function showAllStudent() {
     $.ajax({
        url: '../../api/courses/' + $('#course_id').val() + '/takes/',
        success: function(data) {
-           console.log(data);
            $('#groupdetail table tbody').empty();
             for(var i = 0, len = data.length; i < len; ++i) {
                 var stuinfo, s_class;
@@ -63,22 +58,18 @@ function showAllStudent() {
                     url: data[i].student,
                     async: false,
                     success: function(data) {
-                        console.log(data);
                         stuinfo = data;
                     },
                     error: function(data) {
-                        console.log(data);
                     }
                 });
                 $.ajax({
                     url: stuinfo.s_class,
                     async: false,
                     success: function(data) {
-                        console.log(data);
                         s_class = data;
                     },
                     error: function(data) {
-                        console.log(data);
                     }
                 });
                 var newtr = $('<tr></tr>');
@@ -93,7 +84,6 @@ function showAllStudent() {
             $('#groupdetail').modal();
        },
        error: function(data) {
-           console.log(data);
        }
     });
 }
@@ -102,7 +92,6 @@ function showAllGroup() {
     $.ajax({
        url: '../../api/courses/' + $('#course_id').val() + '/groups/',
        success: function(data) {
-           console.log(data);
            $('#groups table tbody').empty();
             if(data) {
                 for(var i = 0, len = data.length; i < len; ++i) {
@@ -111,11 +100,9 @@ function showAllGroup() {
                        url: data[i].leader,
                        async: false,
                        success: function(data) {
-                           console.log(data);
                            leader = data.name;
                        },
                        error: function(data) {
-                           console.log(data);
                        }
                    });
                     var newtr = $('<tr></tr>');
@@ -134,7 +121,6 @@ function showAllGroup() {
             }
        },
        error: function(data) {
-           console.log(data);
        }
     });
 }
@@ -159,12 +145,10 @@ function saveGroupConfig() {
            max_group_size: $('#group_max').val()
        },
        success: function(data) {
-           console.log(data);
            $('#groupconfig').modal('hide');
            location.reload();
        },
        error: function(data) {
-           console.log(data);
            alert(data.responseText);
        }
     });
@@ -174,7 +158,6 @@ function showGroup(group_id) {
     $.ajax({
        url: '../../api/courses/' + $('#course_id').val() + '/groups/' + group_id,
        success: function(data) {
-           console.log(data);
            $('#groupdetail table tbody').empty();
             for(var i = 0, len = data.members.length; i < len; ++i) {
                 var newtr = $('<tr></tr>');
@@ -189,7 +172,6 @@ function showGroup(group_id) {
             $('#groupdetail').modal();
        },
        error: function(data) {
-           console.log(data);
        }
     });
 }
@@ -199,12 +181,10 @@ function delGroup(group_id) {
        url: '../../api/groups/' + group_id,
        type: 'DELETE',
        success: function(data) {
-           console.log(data);
            $('#groups').modal('hide');
            location.reload();
        },
        error: function(data) {
-           console.log(data);
        }
     });
 }
@@ -221,7 +201,6 @@ function saveCourse() {
         type: 'POST',
         data: data,
         success: function(data) {
-            console.log(data);
             $('#newcourse').modal('hide');
             $('#new_course_name').val('');
             $('#new_course_year').val('');
@@ -230,7 +209,6 @@ function saveCourse() {
             location.reload();
         },
         error: function(data) {
-            console.log(data);
             alert(data.responseText);
         }
     });
@@ -241,12 +219,10 @@ function deleteCourse() {
        url: '../../api/courses/' + $('#course_id').val(),
        type: 'DELETE',
        success: function(data) {
-           console.log(data);
            $('#coursedetail').modal('hide');
            location.reload();
        },
        error: function(data) {
-           console.log(data);
        }
     });
 }
@@ -255,24 +231,20 @@ function showAllAssignment() {
     $.ajax({
        url: '../../api/courses/giving/', 
        success: function(data) {
-           console.log(data);
            $('.assignmentlist table tbody').empty();
            for(var i = 0, len = data.length; i < len; ++i) {
                $.ajax({
                    url: '../../api/assignments/?course=' + data[i].id,
                    success: function(data) {
-                       console.log(data);
                        for(var j = 0, len = data.length; j < len; ++j) {
                            var course;
                            $.ajax({
                                url: data[j].course,
                                async: false,
                                success: function(data) {
-                                   console.log(data);
                                    course = data;
                                },
                                error: function(data) {
-                                   console.log(data);
                                }
                            });
                            var newtr = $('<tr></tr>');
@@ -293,13 +265,11 @@ function showAllAssignment() {
                        $('.menu-opt li:eq(1)').addClass('active');
                    },
                    error: function(data) {
-                       console.log(data);
                    }
                });
            }
        },
        error: function(data){
-           console.log(data);
        }
     });
 }
@@ -308,7 +278,6 @@ function showAssignmentsDetails(url) {
     $.ajax({
        url: url, 
        success: function(data) {
-           console.log(data);
            $('#assignment_id').val(data.id);
            $('#assignment_dead_line').val('');
            $('#assignment_description').val('');
@@ -316,7 +285,6 @@ function showAssignmentsDetails(url) {
            $('#assignmentdetail').modal();
        },
        error: function(data){
-           console.log(data);
        }
     });
 }
@@ -331,12 +299,10 @@ function saveAssignment() {
             grade_ratio: $('#assignment_weight').val()
         },
         success: function(data) {
-            console.log(data);
             $('#assignmentdetail').modal('hide');
             location.reload();
         },
         error: function(data) {
-            console.log(data);
             alert(data.responseText);
         }
     });
@@ -346,7 +312,6 @@ function newAssignment() {
     $.ajax({
         url: '../../api/courses/' + $('#course_id').val(),
         success: function(data) {
-            console.log(data);
             $.ajax({
                 url: '../../api/assignments/',
                 type: 'POST',
@@ -358,18 +323,15 @@ function newAssignment() {
                     grade_ratio: $('#new_assignment_weight').val()
                 },
                 success: function(data) {
-                    console.log(data);
                     $('#newassignment').modal('hide');
                     location.reload();
                 },
                 error: function(data) {
-                    console.log(data);
                     alert(data.responseText);
                 }
             });
         },
         error: function(data) {
-            console.log(data);
         }
     });
 }
@@ -379,12 +341,10 @@ function delAssignment() {
         url: '../../api/assignments/' + $('#assignment_id').val() + '/',
         type: 'DELETE',
         success: function(data) {
-            console.log(data);
             $('#assignmentdetail').modal('hide');
             location.reload();
         },
         error: function(data) {
-            console.log(data);
         }
     })
 }
