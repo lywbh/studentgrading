@@ -259,11 +259,11 @@ function saveGroup() {
             $.ajax({
                 url: '../../api/courses/' + $('#course_id').val() + '/add_group/',
                 type: 'POST',
-                data: {
+                data: $.param({
                     name: $('#new_group_name').val(),
                     leader: data.url,
                     members: members
-                },
+                }, true),
                 success: function(data) {
                     console.log(data);
                     $('#newgroup').modal('hide');
