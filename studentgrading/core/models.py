@@ -1373,7 +1373,7 @@ def teaches_remove_perms(instance, **kwargs):
 
 class GroupQuerySet(models.QuerySet):
     def has_student(self, student):
-        return self.filter(Q(members=student) | Q(leader=student))
+        return self.filter(Q(members=student) | Q(leader=student)).distinct()
 
 
 class GroupManager(models.Manager):
