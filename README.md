@@ -1,6 +1,6 @@
 # studentgrading
 
-A student grading website based on Django 1.7
+A student grading website based on Django 1.9
 The project structure is based on [pydanny/cookiecutter-django](https://github.com/pydanny/cookiecutter-django)
 
 ## Prerequisites
@@ -15,7 +15,7 @@ $ mkvirtualenv project_name
 ```
 Then install libs under project root:
 ```
-$ pip install -r requirements/local.txt
+$ pip install -r requirements.txt
 ```  
 Create `.env` file to store secret info and place it in project root:
 e.g.
